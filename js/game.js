@@ -1,6 +1,6 @@
 import { intToIp, parseCidr, blockSize, usableHosts, prefixForHosts, isAligned, overlaps, describeBlock, findFreeSlot } from './subnet.js';
 import { LEVELS } from './levels.js';
-import { initFalling, setActive } from './falling.js';
+import { initMerge, setMergeActive } from './merge.js';
 
 const $ = (id) => document.getElementById(id);
 const COLOURS = 9;
@@ -335,18 +335,18 @@ function startDrill() {
 }
 
 function setMode(mode) {
-  $('arcade').hidden = mode !== 'arcade'; $('pack').hidden = mode !== 'pack'; $('drill').hidden = mode !== 'drill';
-  ['arcade', 'pack', 'drill'].forEach((m) => {
+  $('merge').hidden = mode !== 'merge'; $('pack').hidden = mode !== 'pack'; $('drill').hidden = mode !== 'drill';
+  ['merge', 'pack', 'drill'].forEach((m) => {
     $('mode-' + m).classList.toggle('on', m === mode);
     $('mode-' + m).setAttribute('aria-pressed', String(m === mode));
   });
-  setActive(mode === 'arcade');
+  setMergeActive(mode === 'merge');
   if (mode === 'drill') startDrill();
 }
-$('mode-arcade').addEventListener('click', () => setMode('arcade'));
+$('mode-merge').addEventListener('click', () => setMode('merge'));
 $('mode-pack').addEventListener('click', () => setMode('pack'));
 $('mode-drill').addEventListener('click', () => setMode('drill'));
 
 startLevel(0);
-initFalling();
-setMode('arcade');
+initMerge();
+setMode('merge');

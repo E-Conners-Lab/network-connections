@@ -12,14 +12,15 @@ Network learners (beginner to intermediate). Fit a list of host requests into a 
 - After each placement the game warns if any remaining request can no longer fit. Undo and Reset are always available.
 - Level complete when all requests are placed. Stars: 3 at 90% or more, 2 at 60% or more, otherwise 1. Best stars are kept in localStorage.
 
-## Arcade mode (default)
-- The well is 16 x 16 cells holding one /24, one cell per address, laid out along a Z-order curve: address = base + morton(x, y).
-  Every aligned power-of-two block is therefore a rectangle: /30 2x2, /29 4x2, /28 4x4, /27 8x4, /26 8x8, /25 16x8, /24 16x16.
-- A request is either one subnet or a bundle of equal-size subnets (domino, I, O, T, L, J, S, Z). Every cell needs the same host count and is its own subnet, so a bundle can be rotated freely.
-- Pieces move in steps of one cell width, fall in steps of one cell height, and so always land on a legal boundary. Arrow up or X rotates, Z rotates back, A and S change the prefix, Space hard-drops.
-- A block that is too small cannot lock (one mistake, -10). An oversized block locks and wastes space. Perfect 100 per subnet, one size too big 50, more 20, plus one point per row dropped. Clearing a round gives 200 and starts a faster round with a new /24.
-- The game ends when the next piece cannot spawn.
-- Reproducible runs: `?seed=N` fixes the random requests and `?tick=ms` overrides gravity speed.
+## Subnet 2048 (default)
+- Goal: slide subnet tiles on a 4x4 board and merge them back into the whole parent block. There is no timer.
+- A tile is a real subnet `{start, prefix}`. Two tiles merge only if they are siblings: same prefix, adjacent, and the lower one starts on a multiple of the parent's size. The merged tile has prefix - 1 (route summarisation).
+- Sliding works as in 2048: tiles move to the edge, siblings that meet merge once per move. Equal-size non-siblings block each other, and the game says why.
+- The parent block is split into a pool of tiles (equal /28 or /26 tiles, or a random mixed split). Two tiles start on the board and one more arrives after each move that changes it. At all times the board plus the pool tile the parent exactly.
+- Arrivals favour useful pieces: usually a sibling of a tile on the board, placed on the same row or column, or a block inside a sibling's range. A planning bot must be able to win every level.
+- Win: a single tile equals the parent. Stuck: the board is full with no possible move, or the pool is empty with no sibling pair. Undo, hint and restart are always available.
+- Score is the sum of the sizes of merged blocks, and best moves per level are kept in localStorage.
+- URL params `?level=N&seed=N` give reproducible runs.
 
 ## Levels (puzzle mode)
 1 First Floor (/24 split), 2 Mind the Gap (alignment), 3 Point to Point (/30), 4 Tight Squeeze (exact fit), 5 Thrifty Links (/31),

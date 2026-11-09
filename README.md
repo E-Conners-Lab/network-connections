@@ -1,20 +1,20 @@
 # Address Space Packer
 
-Pack the address space. Waste nothing. A subnetting / VLSM puzzle game for the NAF AC6 workshop.
+Merge the address space back together. A subnetting game for the NAF AC6 workshop.
 
-**Arcade (default).** Subnets fall into a /24 well like Tetris pieces. Size each block for its host request, rotate it, and drop it onto the stack. Some requests are bundles of equal subnets that fall as L, T, S and Z shapes. Oversized blocks and gaps fill the well, and clearing a round starts a faster one.
+**Subnet 2048 (default).** Tiles are real subnets, like `10.0.0.16/28`. Slide them around a 4x4 board with the arrow keys (or WASD, the buttons, or a swipe). Two tiles merge only if they are *siblings*: the two halves of the same bigger block, side by side, with the lower one starting on a multiple of the bigger block's size.
+
+- 10.0.0.0/28 + 10.0.0.16/28 = 10.0.0.0/27 (siblings)
+- 10.0.0.16/28 + 10.0.0.32/28 cannot merge, because a /27 cannot start at .16
+
+The goal is to merge everything back into the parent block, such as 10.0.0.0/24. There is no timer. A map bar shows what is on the board and what is still to arrive, and Hint and Undo are always available. Six levels run from a /26 up to a /20 campus summary, with mixed block sizes in levels 4 and 6.
 
 | Key | Action |
 | --- | --- |
-| Left / Right | Move one block width |
-| Up or X / Z | Rotate / rotate back |
-| A / S | Bigger / smaller block (prefix) |
-| Down / Space | Soft drop / hard drop |
-| P / Enter | Pause / start |
+| Arrows or WASD | Slide |
+| U / H / R | Undo / hint / restart |
 
-The well uses a Z-order layout, so a /30 is 2x2, a /29 is 4x2, a /28 is 4x4, a /26 is 8x8, and every block is a real aligned subnet.
-
-**Puzzle.** Eight levels of click-to-place VLSM, from a simple /24 split to a /20 campus build, with /30 and RFC 3021 /31 links and a brownfield level with blocks already in use.
+**Puzzle.** Eight levels of click-to-place VLSM, from a simple /24 split to a /20 campus build, with /30 and RFC 3021 /31 links and a brownfield level.
 
 **Warm-up drill.** Ten quick questions on usable hosts and prefix sizing.
 
@@ -29,7 +29,7 @@ Then open http://localhost:8000. No install, no network, no API key.
 ## Tests
 
 ```
-python3 tests/run.py   # subnet maths, layout, rotation, level solvability (headless Chrome)
+python3 tests/run.py   # subnet maths, merge rules, level solvability (headless Chrome)
 python3 tests/e2e.py   # drives the UI (headless Chrome)
 
 # Playwright browser test with an independent Python model; opens a real window and records video

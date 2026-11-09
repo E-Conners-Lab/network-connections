@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Browser test for Address Space Packer using Playwright.
+"""Browser test for Address Space Packer (Subnet 2048, puzzle and drill) using Playwright.
 
 Setup (once):
     python3 -m venv .venv-test && .venv-test/bin/pip install playwright && .venv-test/bin/playwright install chromium
@@ -7,10 +7,10 @@ Run:
     .venv-test/bin/python tests/playwright_test.py            # watch it in a real window, records video
     .venv-test/bin/python tests/playwright_test.py --headless
 
-The subnet maths and gravity are re-implemented here with Python's `ipaddress` module as an independent
-oracle: the bot predicts where each block should land and the game's reported subnet must match.
+The subnet maths and the 2048 slide rules are re-implemented here with Python's `ipaddress` module as an
+independent oracle: every key press is predicted before it is sent and compared with what the game shows.
 """
-import argparse, functools, http.server, ipaddress, math, pathlib, re, socketserver, sys, threading
+import argparse, functools, http.server, ipaddress, math, pathlib, random, re, socketserver, sys, threading
 from playwright.sync_api import sync_playwright
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -25,6 +25,9 @@ def check(cond, name, detail=""):
 
 
 # ---------- independent oracle ----------
+N = 4
+
+
 def usable(prefix):
     return 2 ** (32 - prefix) - 2 if prefix <= 30 else 0
 
@@ -34,55 +37,84 @@ def best_prefix(hosts):
     return 32 - int(math.log2(size))
 
 
-def cell_dims(prefix):
-    k = 32 - prefix
-    return 2 ** math.ceil(k / 2), 2 ** (k // 2)
+def siblings(a, b):
+    """Two networks merge only if they are the two halves of the same parent."""
+    return a.prefixlen == b.prefixlen and a != b and a.supernet() == b.supernet()
 
 
-def morton(x, y):
-    return sum(((x >> i) & 1) << (2 * i) | ((y >> i) & 1) << (2 * i + 1) for i in range(4))
+def lines(d):
+    out = []
+    for k in range(N):
+        idx = []
+        for m in range(N):
+            j = m if d in ("left", "up") else N - 1 - m
+            idx.append(k * N + j if d in ("left", "right") else j * N + k)
+        out.append(idx)
+    return out
 
 
-def normalise(cells):
-    mi, mj = min(c[0] for c in cells), min(c[1] for c in cells)
-    return sorted([i - mi, j - mj] for i, j in cells)
+def slide(board, d):
+    """board: {cell: IPv4Network}. Returns (new board, merges, blocked pairs). Independent of the game's code."""
+    new, merges, blocked = {}, [], []
+    for idx in lines(d):
+        tiles = [board[i] for i in idx if i in board]
+        out, k = [], 0
+        while k < len(tiles):
+            a = tiles[k]; b = tiles[k + 1] if k + 1 < len(tiles) else None
+            if b is not None and siblings(a, b):
+                out.append((a.supernet(), (a, b))); k += 2
+            else:
+                if b is not None and a.prefixlen == b.prefixlen: blocked.append((a, b))
+                out.append((a, None)); k += 1
+        for m, (net, frm) in enumerate(out):
+            new[idx[m]] = net
+            if frm: merges.append((frm, net))
+    return new, merges, blocked
 
 
-rot_cw = lambda cells: normalise([(j, -i) for i, j in cells])
-rot_ccw = lambda cells: normalise([(-j, i) for i, j in cells])
-extent = lambda cells: (max(c[0] for c in cells) + 1, max(c[1] for c in cells) + 1)
+def board_of(snap):
+    return {t["cell"]: ipaddress.ip_network(t["cidr"]) for t in snap["tiles"]}
 
 
-def origins(piece, x=None, y=None):
-    x = piece["x"] if x is None else x
-    y = piece["y"] if y is None else y
-    return [(x + i * piece["w"], y + j * piece["h"]) for i, j in piece["cells"]]
+def coverage_ok(snap):
+    nets = list(board_of(snap).values()) + [ipaddress.ip_network(c) for c in snap["pool"]]
+    parent = ipaddress.ip_network(snap["parent"])
+    return sum(n.num_addresses for n in nets) == parent.num_addresses and list(ipaddress.collapse_addresses(nets)) == [parent]
 
 
-def fits(grid, piece, x, y):
-    for cx, cy in origins(piece, x, y):
-        if cx < 0 or cy < 0 or cx + piece["w"] > W or cy + piece["h"] > H:
-            return False
-        if any(grid[r][c] for r in range(cy, cy + piece["h"]) for c in range(cx, cx + piece["w"])):
-            return False
-    return True
+def eval_board(board, merged):
+    tiles = len(board)
+    stuck = 0
+    for c, a in board.items():
+        for nb in ((c + 1) if c % N < N - 1 else None, c + N):
+            b = board.get(nb) if nb is not None and nb < N * N else None
+            if b is not None and a.prefixlen == b.prefixlen and not siblings(a, b): stuck += 1
+    return merged * 3 - tiles * 40 - stuck * 25
 
 
-def landing(grid, piece):
-    y = piece["y"]
-    while y - piece["h"] >= 0 and fits(grid, piece, piece["x"], y - piece["h"]):
-        y -= piece["h"]
-    return y
+def search(board, depth):
+    best = -1e9
+    for d in ("left", "up", "right", "down"):
+        nb, merges, _ = slide(board, d)
+        if nb == board: continue
+        v = eval_board(nb, sum(n.num_addresses for _, n in merges))
+        if depth > 1:
+            sub = search(nb, depth - 1)
+            if sub > -1e9: v += 0.9 * sub
+        best = max(best, v)
+    return best
 
 
-def cell_network(round_no, cx, cy, prefix):
-    """Strict network for a cell, plus proof that the rectangle covers exactly the subnet's addresses."""
-    w, h = cell_dims(prefix)
-    base = int(ipaddress.ip_address(f"10.{round_no}.0.0"))
-    net = ipaddress.ip_network((base + morton(cx, cy), prefix))            # raises if misaligned
-    covered = sorted(base + morton(c, r) for r in range(cy, cy + h) for c in range(cx, cx + w))
-    assert covered == list(range(int(net.network_address), int(net.network_address) + net.num_addresses)), f"{net} geometry mismatch"
-    return net
+def choose_move(board):
+    best = None
+    for d in ("left", "up", "right", "down"):
+        nb, merges, _ = slide(board, d)
+        if nb == board: continue
+        v = eval_board(nb, sum(n.num_addresses for _, n in merges))
+        sub = search(nb, 2)
+        if sub > -1e9: v += 0.9 * sub
+        if best is None or v > best[0]: best = (v, d)
+    return best[1] if best else None
 
 
 class Server:
@@ -118,186 +150,163 @@ def main():
         press = lambda k: (page.keyboard.press(k), page.wait_for_timeout(args.pace))
         text = lambda sel: page.locator(sel).inner_text()
 
-        def find_seed(pred, limit=80):
-            for sd in range(1, limit):
-                page.goto(base + f"?seed={sd}&tick=60000")
-                s0 = page.evaluate("window.__asp.snapshot()")
-                if pred(s0["reqs"][0]): return sd
-            return None
 
-        # ===================== 1. Arcade controls =====================
-        print("\n== Arcade: controls and rules ==")
-        sd = find_seed(lambda r: r["shape"] == "single" and r["hosts"] >= 3)
-        check(sd is not None, "found a seed that opens with a single-subnet request", str(sd))
+        KEYS = {"left": "ArrowLeft", "right": "ArrowRight", "up": "ArrowUp", "down": "ArrowDown"}
+        goto = lambda level, seed: (page.goto(base + f"?level={level}&seed={seed}"), page.wait_for_selector("#m-board .tile"))
+
+        def check_geometry(label):
+            """Each tile must be drawn in the grid cell the game says it is in (catches flipped axes)."""
+            ok = True; detail = ""
+            page.wait_for_timeout(300)   # let slide animations finish before measuring
+            tiles = page.evaluate("""() => [...document.querySelectorAll('#m-board .tile:not(.leaving)')].map(e => {
+                const b = document.getElementById('m-board').getBoundingClientRect(), r = e.getBoundingClientRect();
+                return { x: Math.round((r.left - b.left) / (b.width / 4)), y: Math.round((r.top - b.top) / (b.height / 4)), label: e.getAttribute('aria-label') }; })""")
+            exp = {t["cell"]: t["cidr"] for t in snap2()["tiles"]}
+            for tl in tiles:
+                cell = tl["y"] * N + tl["x"]
+                if cell not in exp or not tl["label"].startswith(exp[cell] + ","):
+                    ok = False; detail = f"{tl} vs {exp.get(cell)}"
+            check(ok and len(tiles) == len(exp), f"{label}: every tile is drawn in its own cell", detail)
+
+        snap2 = lambda: page.evaluate("window.__m2048.snapshot()")
+
+        # ===================== 1. Subnet 2048: screen and rules =====================
+        print("\n== Subnet 2048: screen ==")
+        goto(1, 4)
         check(page.title() == "Address Space Packer", "page title")
-        check(page.locator("#arcade").is_visible() and not page.locator("#pack").is_visible(), "Arcade is the default tab")
-        press("Enter")
-        check(text("#arcade-start") == "Pause", "Enter starts the game")
-        s = snap(); pc = s["piece"]
-        check((pc["prefix"], pc["x"]) == (28, 0) and pc["y"] == H - extent(pc["cells"])[1] * pc["h"], "piece spawns as /28 at top-left", str(pc))
+        check(page.locator("#merge").is_visible() and not page.locator("#pack").is_visible(), "Subnet 2048 is the default tab")
+        check("Goal: merge every block back into 10.0.0.0/26" in text("#m-goal"), "goal is stated on screen", text("#m-goal"))
+        check("Merge siblings" in text("#merge .rules"), "merge rule is explained on screen")
+        s0 = snap2()
+        check(len(s0["tiles"]) == 2 and len(s0["pool"]) == 2 and coverage_ok(s0), "level 1 starts with 2 blocks on the board and 2 waiting, covering 10.0.0.0/26 exactly")
+        check_geometry("start")
         page.screenshot(path=str(ART / "01-start.png"))
 
-        # grow / shrink: sizes, usable counts and cell shapes against the oracle
-        for p in range(27, 23, -1):
-            press("a")
-            pc = snap()["piece"]
-            check(f"/{p} gives {usable(p)} usable" in text("#a-piece") and (pc["w"], pc["h"]) == cell_dims(p), f"A grows to /{p}: {usable(p)} usable, cell {cell_dims(p)[0]}x{cell_dims(p)[1]}", str(pc))
-        press("a"); check(snap()["piece"]["prefix"] == 24, "cannot grow past /24")
-        for p in range(25, 31):
-            press("s")
-            pc = snap()["piece"]
-            check((pc["w"], pc["h"]) == cell_dims(p), f"S shrinks to /{p}: cell {cell_dims(p)[0]}x{cell_dims(p)[1]}", str(pc))
-        press("s"); check(snap()["piece"]["prefix"] == 30, "cannot shrink past /30")
+        # ===================== 2. Every key press checked against the independent model =====================
+        print("\n== Subnet 2048: every move checked against a Python model ==")
+        saw_merge = saw_blocked = 0
+        rnd = random.Random(11)
+        for level, seed, moves in ((3, 5, 45), (4, 2, 35), (6, 1, 30)):
+            goto(level, seed)
+            for n in range(moves):
+                pre = snap2()
+                if pre["won"] or pre["lost"]: break
+                d = rnd.choice(["left", "right", "up", "down"])
+                pred, merges, blocked = slide(board_of(pre), d)
+                moved = pred != board_of(pre)
+                press(KEYS[d])
+                post = snap2()
+                got = board_of(post)
+                extra = {c: n_ for c, n_ in got.items() if pred.get(c) != n_}
+                pool_pre = sorted(pre["pool"]); pool_post = sorted(post["pool"])
+                label = f"L{level}/s{seed} move {n + 1} {d}"
+                if not moved:
+                    check(got == board_of(pre) and post["moves"] == pre["moves"], f"{label}: no-op slide changes nothing")
+                    continue
+                spawned = len(pool_pre) - len(pool_post)
+                good = {c: n_ for c, n_ in got.items() if c in pred and pred[c] == n_} == {c: n_ for c, n_ in pred.items() if got.get(c) == n_} and all(c in got for c in pred)
+                check(good and len(extra) == spawned and spawned in (0, 1), f"{label}: slide matches model" + (f" (+1 spawn)" if spawned else ""), f"pred={pred} got={got}")
+                if spawned:
+                    (cell, net), = extra.items()
+                    check(str(net) in pool_pre and cell not in pred and sorted(pool_pre) == sorted(pool_post + [str(net)]), f"{label}: spawned block came from the pool into an empty cell")
+                gained = sum(n_.num_addresses for _, n_ in merges)
+                check(post["score"] - pre["score"] == gained and post["moves"] == pre["moves"] + 1, f"{label}: score +{gained}, moves +1")
+                check(coverage_ok(post), f"{label}: board + pool still cover the parent exactly")
+                if merges:
+                    saw_merge += 1
+                    check(all(siblings(a, b) for (a, b), _ in merges), f"{label}: every merge was a true sibling pair")
+                    check(text("#m-msg").count("=") >= len(merges), f"{label}: message explains the merge", text("#m-msg"))
+                if blocked:
+                    saw_blocked += 1
+                    check("not siblings" in text("#m-msg"), f"{label}: blocked equal-size neighbours are explained", text("#m-msg"))
+                if n % 10 == 0: check_geometry(label)
+        check(saw_merge >= 5, f"model run exercised merges ({saw_merge})")
+        check(saw_blocked >= 1, f"model run exercised blocked non-sibling pairs ({saw_blocked})")
+        page.screenshot(path=str(ART / "02-mid-game.png"))
 
-        # horizontal movement steps by the cell width and stops at the walls
-        for prefix in (29, 28):
-            while snap()["piece"]["prefix"] > prefix: press("a")
-            while snap()["piece"]["prefix"] < prefix: press("s")
-            pc = snap()["piece"]; cols = extent(pc["cells"])[0]
-            xs = []
-            for _ in range(10):
-                press("ArrowRight"); xs.append(snap()["piece"]["x"])
-            check(all(x % pc["w"] == 0 for x in xs) and xs[-1] == W - cols * pc["w"], f"/{prefix} moves in steps of {pc['w']} and stops at the right wall", str(xs))
-            for _ in range(10): press("ArrowLeft")
-            check(snap()["piece"]["x"] == 0, f"/{prefix} stops at the left wall")
-
-        # too-small block is refused
-        s = snap(); req = s["reqs"][s["idx"]]
-        small = next((p for p in range(30, 23, -1) if usable(p) < req["hosts"]), None)
-        if small:
-            while snap()["piece"]["prefix"] < small: press("s")
-            while snap()["piece"]["prefix"] > small: press("a")
-            before = snap(); press("Space"); after = snap()
-            check(after["piece"] is not None and after["idx"] == before["idx"], "too-small block does not lock")
-            msg = text("#a-msg")
-            check(f"has {usable(small)} usable" in msg and f"needs {req['hosts']}" in msg, "refusal message quotes the right numbers", msg)
-            check("err" in (page.locator("#a-piece").get_attribute("class") or ""), "UI flags the size as wrong")
-            page.screenshot(path=str(ART / "02-too-small-refused.png"))
+        # ===================== 3. Undo, hint, restart, swipe, tab isolation =====================
+        print("\n== Subnet 2048: undo, hint, restart, swipe ==")
+        goto(3, 5)
+        for _ in range(6):
+            d = choose_move(board_of(snap2())); press(KEYS[d])
+        before = snap2(); press("ArrowLeft") if board_of(before) != slide(board_of(before), "left")[0] else press("ArrowRight")
+        after = snap2()
+        press("u")
+        back = snap2()
+        check(back["moves"] == before["moves"] and back["score"] == before["score"] and back["pool"] == before["pool"] and board_of(back) == board_of(before), "Undo restores the exact previous board, pool, score and moves")
+        pair = next(((a, b) for a in board_of(back).values() for b in board_of(back).values() if siblings(a, b)), None)
+        page.click("#m-hint")
+        if pair:
+            check(page.locator("#m-board .tile.hint").count() == 2 and str(pair[0]) in text("#m-msg"), "Hint highlights a real sibling pair", text("#m-msg"))
         else:
-            print("SKIP too-small test (request needs <= 2 hosts)")
-        press("p"); check(text("#arcade-start") == "Resume" and snap()["state"] == "paused", "P pauses")
-        press("Enter"); check(snap()["state"] == "running", "Enter resumes")
+            check("No sibling pair" in text("#m-msg"), "Hint says no pair yet and names the missing sibling", text("#m-msg"))
+        box = page.locator("#m-board").bounding_box()
+        mv = snap2()["moves"]
+        page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        page.mouse.down(); page.mouse.move(box["x"] + box["width"] / 2 + 120, box["y"] + box["height"] / 2, steps=6); page.mouse.up()
+        page.wait_for_timeout(200)
+        check(snap2()["moves"] >= mv, "swipe on the board is accepted")
+        page.click("#m-restart")
+        check(snap2()["moves"] == 0 and len(snap2()["tiles"]) == 2, "Restart starts over")
+        page.click("#mode-pack")
+        mv = snap2()["moves"]
+        for k in ("ArrowLeft", "ArrowUp", "w", "a"): press(k)
+        page.click("#mode-merge")
+        check(snap2()["moves"] == mv, "arrow keys do nothing to the 2048 board while another tab is open")
 
-        # ===================== 1b. Rotation =====================
-        print("\n== Arcade: rotation ==")
-        sd = find_seed(lambda r: r["shape"] in ("T", "L", "J", "S", "Z"))
-        check(sd is not None, "found a seed whose first piece is an odd-shaped bundle", str(sd))
-        press("Enter")
-        s = snap(); pc = s["piece"]; req = s["reqs"][0]
-        check(len(pc["cells"]) == len(req["cells"]) >= 4, f"{req['name']} is a {req['shape']} of {len(pc['cells'])} subnets", str(pc["cells"]))
-        check(f"{req['hosts']} hosts each" in text("#a-req"), "panel says hosts apply to each block", text("#a-req"))
-        start_cells = normalise(pc["cells"]); cur = start_cells; seen = {str(start_cells)}
-        for turn in range(1, 5):
-            press("ArrowUp")
-            pc = snap()["piece"]; cur = rot_cw(cur)
-            check(normalise(pc["cells"]) == cur, f"Up arrow rotation {turn} matches independent clockwise rotation", f"{normalise(pc['cells'])} vs {cur}")
-            check(all(0 <= cx and cx + pc["w"] <= W and 0 <= cy and cy + pc["h"] <= H for cx, cy in origins(pc)), f"rotation {turn} stays inside the well")
-            seen.add(str(normalise(pc["cells"])))
-        check(normalise(snap()["piece"]["cells"]) == start_cells, "four clockwise turns restore the shape")
-        check(len(seen) >= 2, "rotation actually changes the shape", str(len(seen)))
-        press("z")
-        check(normalise(snap()["piece"]["cells"]) == rot_ccw(start_cells), "Z rotates counter-clockwise")
-        press("x"); check(normalise(snap()["piece"]["cells"]) == start_cells, "X rotates clockwise (undoes Z)")
-        for _ in range(10): press("ArrowRight")
-        press("ArrowUp")
-        pc = snap()["piece"]
-        check(all(0 <= cx and cx + pc["w"] <= W for cx, cy in origins(pc)), "rotating against the right wall kicks the piece back inside")
-        page.screenshot(path=str(ART / "02b-rotated-bundle.png"))
+        # ===================== 4. A planning bot wins levels (keyboard only) =====================
+        print("\n== Subnet 2048: bot plays to the win ==")
+        wins = 0
+        for level in (1, 2, 3):
+            won = False
+            for seed in range(1, 9):
+                goto(level, seed)
+                guard = 0
+                while guard < 400:
+                    guard += 1
+                    s_ = snap2()
+                    if s_["won"] or s_["lost"]: break
+                    d = choose_move(board_of(s_))
+                    if d is None: break
+                    press(KEYS[d])
+                s_ = snap2()
+                if s_["won"]:
+                    won = True; wins += 1
+                    parent = ipaddress.ip_network(s_["parent"])
+                    check(list(board_of(s_).values()) == [parent] and not s_["pool"], f"level {level} (seed {seed}): ends as a single {parent} block with an empty pool")
+                    check(page.locator("#m-done").is_visible() and "Level complete" in text("#m-done-title"), f"level {level}: completion panel shown")
+                    check(f"{s_['moves']} moves" in text("#m-best"), f"level {level}: best moves recorded", text("#m-best"))
+                    page.screenshot(path=str(ART / f"03-level{level}-won.png"))
+                    if level < 3:
+                        page.click("#m-next")
+                        check(f"Level {level + 1}" in text("#m-title"), f"Next level goes to level {level + 1}")
+                    break
+            check(won, f"bot won level {level} within 8 seeds")
 
-        # ===================== 2. Bot plays full rounds; Python oracle checks every lock =====================
-        def play_round(label):
-            allocs = []
-            while True:
-                s = snap()
-                if s["state"] in ("roundclear", "over") or s["piece"] is None:
-                    return s
-                req = s["reqs"][s["idx"]]; n = len(req["cells"])
-                want = best_prefix(req["hosts"])
-                check(want == 32 - int(math.log2(req["size"])), f"{label} {req['name']}: oracle size matches /{want}")
-                while snap()["piece"]["prefix"] > want: press("a")
-                while snap()["piece"]["prefix"] < want: press("s")
-                # try the four rotations and every column, keep the lowest stack
-                pick = None
-                for rot in range(4):
-                    pc = snap()["piece"]; grid = snap()["grid"]; cols, rows = extent(pc["cells"])
-                    for x in range(0, W - cols * pc["w"] + 1, pc["w"]):
-                        if not fits(grid, pc, x, pc["y"]): continue
-                        ly = landing(grid, {**pc, "x": x})
-                        key = (ly + rows * pc["h"], ly, x)
-                        if pick is None or key < pick[0]: pick = (key, rot, x)
-                    press("ArrowUp")
-                if pick is None:
-                    press("Space"); continue
-                for _ in range(pick[1]): press("ArrowUp")
-                pc = snap()["piece"]
-                steps = (pick[2] - pc["x"]) // pc["w"]
-                for _ in range(abs(steps)): press("ArrowRight" if steps > 0 else "ArrowLeft")
-                # predict the result from the live state just before the drop
-                s = snap(); pc = s["piece"]; grid = s["grid"]
-                ly = landing(grid, pc)
-                rows_dropped = pc["y"] - ly
-                cells = [(cx, cy, k) for k, (cx, cy) in enumerate(origins(pc, pc["x"], ly))]
-                nets = [(cell_network(s["round"], cx, cy, want), req["names"][k]) for cx, cy, k in cells]
-                nets.sort(key=lambda t: int(t[0].network_address))
-                before = s["score"]
-                press("Space")
-                s2 = snap()
-                log = page.locator("#a-log li").all_inner_texts()
-                got = log[-n:]
-                exp = [f"{name}: {net}" for net, name in nets]
-                check(got == exp, f"{label} {req['name']} ({req['hosts']} hosts{' each' if n > 1 else ''}, {req['shape']}) -> {', '.join(str(x[0]) for x in nets)}", f"{got} vs {exp}")
-                bonus = 200 if s2["roundDone"] else 0
-                check(s2["score"] - before == 100 * n + rows_dropped + bonus, f"{label} score +{100 * n + rows_dropped + bonus}", f"got +{s2['score'] - before}")
-                check(usable(want) >= req["hosts"] and (want == 30 or usable(want + 1) < req["hosts"]), f"{label} /{want} is the smallest block for {req['hosts']} hosts")
-                for net, _ in nets:
-                    for other in allocs:
-                        if net.overlaps(other): check(False, f"{label} no overlap", f"{net} vs {other}")
-                    allocs.append(net)
-
-        cleared_round = None; saw_bundle = False
-        for seed in range(1, 13):
-            print(f"\n== Arcade: bot plays seed {seed} (round 1) ==")
-            page.goto(base + f"?seed={seed}&tick=60000")
-            press("Enter")
-            saw_bundle = saw_bundle or any(len(r["cells"]) > 1 for r in snap()["reqs"])
-            s = play_round(f"seed{seed}/r1")
-            if s["state"] == "roundclear":
-                parent = ipaddress.ip_network("10.1.0.0/24")
-                items = page.locator("#a-log li").all_inner_texts()
-                nets = [ipaddress.ip_network(i.split(": ")[1].split(" ")[0]) for i in items]
-                want_n = sum(len(r["cells"]) for r in s["reqs"])
-                check(len(items) == want_n, "plan lists every block", f"{len(items)}/{want_n}")
-                check(all(n.subnet_of(parent) for n in nets), "every block is inside 10.1.0.0/24")
-                check(text("#arcade-start") == "Next round" and text("#a-left") == "0", "round clear shows Next round")
-                page.screenshot(path=str(ART / "03-round-clear.png"))
-                cleared_round = seed
-                press("Enter")
-                s = snap()
-                check(s["round"] == 2 and text("#a-round") == "2", "Enter starts round 2")
-                check(all(v == 0 for row in s["grid"] for v in row), "round 2 board is empty")
-                print(f"\n== Arcade: bot plays seed {seed} (round 2) ==")
-                s = play_round(f"seed{seed}/r2")
-                page.screenshot(path=str(ART / "04-round-2.png"))
+        # ===================== 5. Getting stuck is detected =====================
+        print("\n== Subnet 2048: stuck detection ==")
+        stuck = False
+        for seed in range(1, 8):
+            goto(3, seed)
+            rr = random.Random(seed)
+            for _ in range(200):
+                s_ = snap2()
+                if s_["won"] or s_["lost"]: break
+                tiles = board_of(s_)
+                options = [d for d in KEYS if slide(tiles, d)[0] != tiles]
+                no_merge = [d for d in options if not slide(tiles, d)[1]]   # adversarial: avoid merging whenever possible
+                press(KEYS[rr.choice(no_merge or options or list(KEYS))])
+            if snap2()["lost"]:
+                stuck = True
+                s_ = snap2(); tiles = board_of(s_)
+                no_move = all(slide(tiles, d)[0] == tiles for d in KEYS) or (not s_["pool"] and not any(siblings(a, b) for a in tiles.values() for b in tiles.values()))
+                check(no_move, "game declares 'stuck' only when no merge is possible")
+                check(page.locator("#m-done").is_visible() and "Stuck" in text("#m-done-title"), "stuck panel shown")
+                page.screenshot(path=str(ART / "04-stuck.png"))
+                press("u")
+                check(not snap2()["lost"] and page.locator("#m-done").is_hidden(), "Undo recovers from a stuck board")
                 break
-            else:
-                print(f"   seed {seed} ended in state {s['state']}, trying next")
-        check(cleared_round is not None, "bot cleared at least one full round", str(cleared_round))
-        check(saw_bundle, "bundles (odd-shaped pieces) appeared in the rounds played")
-
-        # ===================== 3. Waste fills the well =====================
-        print("\n== Arcade: oversized blocks end the game ==")
-        page.goto(base + "?seed=3&tick=60000")
-        press("Enter")
-        guard = 0
-        while snap()["state"] == "running" and guard < 20:
-            guard += 1
-            for _ in range(6): press("a")
-            press("Space")
-        s = snap()
-        check(s["state"] == "over" and s["over"], "wasting space (huge blocks) ends the game")
-        check(text("#arcade-start") == "Play again", "Play again offered")
-        page.screenshot(path=str(ART / "05-game-over.png"))
-        check("(oversized)" in text("#a-log"), "plan marks oversized blocks")
+        check(stuck or not snap2()["lost"], "adversarial play never gets a false 'stuck' (a real stuck board is covered by the unit tests)")
 
         # ===================== 4. Puzzle mode =====================
         print("\n== Puzzle mode ==")

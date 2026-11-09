@@ -4,15 +4,15 @@ arcade_version: 1
 game:
   title: "Address Space Packer"
   slug: address-space-packer
-  tagline: "Pack the address space. Waste nothing."
-  summary: "Subnets fall into a /24 like Tetris pieces. You resize each block to fit its host request, then rotate and drop it, and bundles of equal subnets arrive as L, T, S and Z shapes. Every block is a real aligned subnet, and oversized blocks fill the well. A separate puzzle mode and a warm-up drill cover the same skills."
-  topics: [Subnetting, VLSM, CIDR, Block alignment, RFC 4632, RFC 3021]
+  tagline: "Merge sibling subnets back into one route."
+  summary: "Slide subnet blocks around a 4x4 board like 2048, but two blocks only merge when they are true siblings, the two halves of the same bigger block. You rebuild a whole parent block such as 10.0.0.0/24 and learn CIDR, summarisation and why alignment matters. A placement puzzle and a warm-up drill cover the same skills."
+  topics: [Subnetting, CIDR, Route summarisation, Block alignment, RFC 4632]
   category: network-fundamentals
   skill_level: beginner
   play_minutes: 15
-  levels: 8
+  levels: 14
   card_image: assets/images/title.png
-  card_image_alt: "A colour-coded address bar split into /25, /26, /27 and /28 blocks under the title Address Space Packer."
+  card_image_alt: "Two purple /28 blocks plus each other equal one /27 block under the title Address Space Packer."
   repo: https://github.com/E-Conners-Lab/address-space-packer
   repo_path: ""
   license: MIT
@@ -45,7 +45,7 @@ build:
   rag_and_sources: ["https://automateyournetwork.com/arcade/ (fetched)", "https://automateyournetwork.com/arcade/ARCADE.md (fetched)", "RFC 4632, RFC 3021 and RFC 1918 from model knowledge, not fetched during the session"]
   skills_and_plugins: ["none"]
   other_tools: ["Playwright 1.64.1 for Python with Playwright Chromium (browser tests, video)", "pip-audit (no known vulnerabilities reported in the test venv)", "Google Chrome 157 headless (unit and UI test pages, screenshots, card image render)", "Python 3 http.server", "gh CLI"]
-  human_prompts: 10
+  human_prompts: 14
   usage:
     input_tokens: unknown
     output_tokens: unknown
@@ -64,26 +64,26 @@ runtime:
   requires_api_key: false
   uses_ai_at_runtime: false
   browsers: ["Chrome 157 (headless)", "Playwright Chromium, headed and headless"]
-  accessibility: "Arcade mode is keyboard-driven (arrows, A, S, Z, X, Space, P) with on-screen touch buttons, and the board is a canvas with no screen reader description of the falling pieces, so Arcade mode is not screen reader accessible. Puzzle mode and the drill use native buttons with aria-labels and an aria-live message area. Keyboard play was tested by Playwright; no screen reader testing was done."
-  save_state: "browser localStorage (best puzzle stars per level, arcade best score)"
+  accessibility: "Subnet 2048 plays with arrow keys or WASD, on-screen buttons or swipes. Tiles have aria-labels with address and host count, and the move message is an aria-live region. Puzzle mode and the drill use native buttons. Keyboard play was tested with Playwright; no screen reader testing was done."
+  save_state: "browser localStorage (best moves per Subnet 2048 level, best puzzle stars)"
 
 verification:
   tests: "python3 tests/run.py && python3 tests/e2e.py && .venv-test/bin/python tests/playwright_test.py"
-  tests_passing: 204
+  tests_passing: 430
   facts_sourced_from: ["RFC 4632 (CIDR)", "RFC 3021 (31-bit prefixes on point-to-point links)", "RFC 1918 (private address ranges)"]
-  known_limits: ["bundles are groups of equal-size subnets, so oddly shaped pieces are a game mechanic and real subnets are never L-shaped", "the well uses a Z-order layout, so address order is not simply row by row", "only bundles change shape when rotated, single subnets are one square or rectangle", "arcade rounds are generated with a seeded random generator and are not guaranteed to be perfectly packable", "IPv4 only", "no supernetting or route summarisation", "ignores gateway, DHCP and cloud-provider reserved addresses", "level grids are capped at a coarse unit, so prefixes finer than the grid cannot be placed", "ES modules need a local web server, so the page will not run from file://"]
+  known_limits: ["IPv4 only", "Subnet 2048 only models summarisation of aligned sibling blocks, not overlapping or non-contiguous routes", "new blocks are chosen by a helper that favours useful pieces, so the sequence is not uniformly random", "a deadlocked board is rare because of that helper, and the stuck state is covered by unit tests rather than reproduced in the browser", "ignores gateway, DHCP and cloud-provider reserved addresses", "puzzle-mode grids use a coarse unit, so prefixes finer than the grid cannot be placed", "ES modules need a local web server, so the page will not run from file://"]
 ---
 
 ## In one paragraph
 
-Address Space Packer is a subnetting game for people learning VLSM, and its main mode plays like Tetris. Subnets fall into a /24, you resize each one for its host request, rotate it and drop it. Some requests arrive as bundles ("four branches, 12 hosts each") that fall as L, T, S and Z shapes. Every block is a real, aligned subnet, and oversized blocks and gaps fill the well. A placement puzzle mode with eight levels and a ten-question warm-up drill cover the same skills at a slower pace. It suits anyone who can read a /24 but still counts on their fingers when asked for a /27.
+Address Space Packer is a subnetting game for people learning CIDR and route summarisation. Its main mode is Subnet 2048: tiles are real subnets, and you slide them around a 4x4 board to merge them back into one parent block, for example 10.0.0.0/24. Two tiles merge only if they are siblings, the two halves of the same bigger block, so 10.0.0.0/28 and 10.0.0.16/28 become 10.0.0.0/27, but 10.0.0.16/28 and 10.0.0.32/28 do not. The game says why when equal-size neighbours refuse to merge. A placement puzzle with eight levels and a ten-question warm-up drill cover the same skills. There is no timer.
 
 ## How it was built
 
-Built in one Claude Code session on 2026-11-09. The human asked for a subnetting game inspired by the arcade, and we reviewed the arcade page and the ARCADE.md template before choosing between four ideas. The human picked the address-packing idea, and we first built a click-to-place puzzle with pure subnet logic, tests and eight levels. The human then asked for Tetris-style looks and feel, so we added a falling-block Arcade mode. Rotating individual subnets would have broken the link between position and address, so we moved the well to a Z-order layout where every aligned block is a compact rectangle, and made the odd Tetris shapes bundles of equal subnets. The spec files (constitution, spec, plan) were written after the first implementation and then updated for the arcade mode, so this is lighter-touch spec-driven work than the template's framework assumes. Node was not installed, so unit and UI tests run in headless Chrome through small Python runners, and a Playwright suite drives the real game and checks it against an independent Python model of the subnet maths, layout, rotation and gravity. That suite caught a favicon 404, and a wrong test assumption about growing a bundle past the well width.
+Built in one Claude Code session on 2026-11-09. The human asked for a subnetting game inspired by the arcade, and we reviewed the arcade page and the ARCADE.md template before choosing between four ideas. The human picked an address-packing puzzle first, then asked for a Tetris feel, so we built a falling-block mode with rotating bundles of subnets. Testing showed the blocks were too big, the pace too fast and the goal unclear, so the human asked for an existing popular game instead, and we replaced it with Subnet 2048. Subnet 2048 runs on pure rules in `js/merge-core.js`. A helper that favours useful new blocks was added after bots rarely won the larger levels. The spec files (constitution, spec, plan) were written after the first implementation and updated for each change, so this is lighter-touch spec-driven work than the template's framework assumes. Node was not installed, so unit and UI tests run in headless Chrome through small Python runners. A Playwright suite then drives the real game and compares every key press with an independent Python model built on the `ipaddress` module. It caught a flipped up/down axis early on, and it also caught slide animations being measured mid-motion.
 
 ## What we'd tell the next builder
 
-- Keep the networking logic in a DOM-free module and test every level for solvability. It caught a real level-design bug that playing would have missed.
-- Check that a visual metaphor does not break the facts. Per-piece rotation sounded easy, but a subnet must be contiguous, so we changed the layout instead of drawing wrong subnets.
-- Test against an independent model, such as Python's `ipaddress` module, rather than re-using the game's own functions.
+- Test early with a real player. Our first two game designs were built and tested before the human found them too fast and unclear. Pick a familiar game before you start.
+- Check that a visual metaphor does not break the facts. Rotating single subnets would have drawn blocks that are not real subnets.
+- Test against an independent model, such as Python's `ipaddress` module, rather than the game's own functions, and measure win rates with a planning bot to tune difficulty.

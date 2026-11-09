@@ -2,7 +2,7 @@
 <script type="module">
 import * as S from '../js/subnet.js';
 import { LEVELS } from '../js/levels.js';
-import * as F from '../js/falling-core.js';
+import * as M from '../js/merge-core.js';
 const results = []; let pass = 0, fail = 0;
 function t(name, fn) { try { fn(); pass++; } catch (e) { fail++; results.push('FAIL ' + name + ': ' + e.message); } }
 function eq(a, b) { if (a !== b) throw new Error(`expected ${b}, got ${a}`); }
@@ -41,103 +41,135 @@ for (const L of LEVELS) {
   });
 }
 
-// ---- falling-block core ----
-t('Z-order: every aligned block is a rectangle covering exactly its address range', () => {
-  for (let prefix = 24; prefix <= 30; prefix++) {
-    const sh = F.shape(prefix);
-    for (let y = 0; y < F.H; y += sh.h) for (let x = 0; x < F.W; x += sh.w) {
-      const addrs = [];
-      for (let r = y; r < y + sh.h; r++) for (let c = x; c < x + sh.w; c++) addrs.push(F.morton(c, r));
-      addrs.sort((a, b) => a - b);
-      const start = addrs[0];
-      if (start % sh.size) throw new Error(`/${prefix} at ${x},${y} starts misaligned at ${start}`);
-      addrs.forEach((a, i) => { if (a !== start + i) throw new Error(`/${prefix} at ${x},${y} not contiguous`); });
-    }
+// ---- Subnet 2048 core ----
+const T = (cidr, id = 1) => { const c = S.parseCidr(cidr); return { id, start: c.start, prefix: c.prefix }; };
+t('siblings: halves of the same parent only', () => {
+  eq(M.areSiblings(T('10.0.0.0/28'), T('10.0.0.16/28')), true);
+  eq(M.areSiblings(T('10.0.0.16/28'), T('10.0.0.0/28')), true);
+  eq(M.areSiblings(T('10.0.0.16/28'), T('10.0.0.32/28')), false);   // adjacent and equal, but not siblings
+  eq(M.areSiblings(T('10.0.0.0/28'), T('10.0.0.16/29')), false);    // different sizes
+  eq(M.areSiblings(T('10.0.0.0/28'), T('10.0.0.0/28')), false);
+  eq(M.areSiblings(T('10.0.0.32/27'), T('10.0.0.0/27')), true);     // together they make 10.0.0.0/26
+  eq(M.areSiblings(T('10.0.0.32/27'), T('10.0.0.64/27')), false);   // adjacent and equal, but different /26 parents
+});
+t('siblingStart and merge result', () => {
+  eq(S.intToIp(M.siblingStart(T('10.0.0.48/28'))), '10.0.0.32');
+  eq(S.intToIp(M.siblingStart(T('10.0.0.0/26'))), '10.0.0.64');
+  const m = M.mergedOf(T('10.0.0.16/28'), T('10.0.0.0/28')); eq(S.intToIp(m.start) + '/' + m.prefix, '10.0.0.0/27');
+});
+t('every level pool tiles the parent exactly (30 seeds each)', () => {
+  for (const L of M.LEVELS) for (let seed = 1; seed <= 30; seed++) {
+    const pool = M.makePool(L, M.rng(seed)).slice().sort((a, b) => a.start - b.start);
+    const parent = S.parseCidr(L.parent); let at = parent.start;
+    for (const b of pool) { if (b.start !== at) throw new Error(`level ${L.id} gap/overlap at ${S.intToIp(at)}`); if (b.start % S.blockSize(b.prefix)) throw new Error('misaligned'); at += S.blockSize(b.prefix); }
+    if (at !== parent.start + parent.size) throw new Error(`level ${L.id} does not fill the parent`);
   }
 });
-t('shape dims: /30 2x2, /29 4x2, /28 4x4, /27 8x4, /26 8x8, /25 16x8, /24 16x16', () => {
-  const want = { 30: '2x2', 29: '4x2', 28: '4x4', 27: '8x4', 26: '8x8', 25: '16x8', 24: '16x16' };
-  for (const [p, d] of Object.entries(want)) { const s = F.shape(Number(p)); eq(s.w + 'x' + s.h, d); }
+const empty = () => new Array(16).fill(null);
+t('slide left merges siblings', () => {
+  const b = empty(); b[0] = T('10.0.0.0/28', 1); b[3] = T('10.0.0.16/28', 2);
+  const r = M.slide(b, 'left');
+  eq(r.merges.length, 1); eq(r.board[0].prefix, 27); eq(S.intToIp(r.board[0].start), '10.0.0.0'); eq(r.board[3], null); eq(r.moved, true);
 });
-t('morton is a bijection on the 16x16 well', () => {
-  const seen = new Set(); for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) seen.add(F.morton(x, y)); eq(seen.size, 256);
+t('equal-size non-siblings block each other and report why', () => {
+  const b = empty(); b[0] = T('10.0.0.16/28', 1); b[1] = T('10.0.0.32/28', 2);
+  const r = M.slide(b, 'left');
+  eq(r.merges.length, 0); eq(r.blocked.length, 1); eq(r.moved, false);
 });
-t('rotation: 4 turns restore every shape; CW then CCW is identity', () => {
-  for (const [name, cells] of Object.entries(F.SHAPES)) {
-    let c = cells; for (let i = 0; i < 4; i++) c = F.rotateCW(c);
-    eq(JSON.stringify(c.slice().sort()), JSON.stringify(cells.slice().sort()));
-    eq(JSON.stringify(F.rotateCCW(F.rotateCW(cells)).slice().sort()), JSON.stringify(cells.slice().sort()));
-    eq(F.rotateCW(cells).length, cells.length);
+t('one merge per tile per move', () => {
+  const b = empty(); ['10.0.0.0/28', '10.0.0.16/28', '10.0.0.32/28', '10.0.0.48/28'].forEach((c, i) => { b[i] = T(c, i + 1); });
+  const r = M.slide(b, 'left');
+  eq(r.merges.length, 2); eq(r.board[0].prefix, 27); eq(r.board[1].prefix, 27); eq(r.board[2], null);
+});
+t('slide directions: up/down/right', () => {
+  const b = empty(); b[0] = T('10.0.0.0/28', 1); b[12] = T('10.0.0.16/28', 2);   // column 0, rows 0 and 3
+  eq(M.slide(b, 'down').merges.length, 1); eq(M.slide(b, 'up').merges.length, 1);
+  eq(M.slide(b, 'down').board[12].prefix, 27); eq(M.slide(b, 'up').board[0].prefix, 27);
+  const c = empty(); c[0] = T('10.0.0.0/28', 1); c[2] = T('10.0.0.16/28', 2);
+  eq(M.slide(c, 'right').board[3].prefix, 27);
+});
+function coverage(g) {
+  const all = [...g.board.filter(Boolean), ...g.pool].sort((a, b) => a.start - b.start);
+  let at = g.parent.start;
+  for (const x of all) { if (x.start !== at) return false; at += S.blockSize(x.prefix); }
+  return at === g.parent.start + g.parent.size;
+}
+t('coverage invariant holds through 300 random moves on every level', () => {
+  for (let li = 0; li < M.LEVELS.length; li++) {
+    const g = M.newGame(li, 5); const r = M.rng(99); const dirs = ['left', 'right', 'up', 'down'];
+    for (let i = 0; i < 300 && !g.won && !g.lost; i++) { M.move(g, dirs[Math.floor(r() * 4)]); if (!coverage(g)) throw new Error(`level ${li + 1} coverage broken at move ${i}`); }
+    if (!coverage(g)) throw new Error('final coverage');
   }
 });
-t('rotating I turns 4x1 into 1x4; T has four distinct orientations', () => {
-  const e = F.extent(F.rotateCW(F.SHAPES.I)); eq(e.cols + 'x' + e.rows, '1x4');
-  const seen = new Set(); let c = F.SHAPES.T; for (let i = 0; i < 4; i++) { seen.add(JSON.stringify(c.slice().sort())); c = F.rotateCW(c); } eq(seen.size, 4);
+t('undo restores the exact previous state', () => {
+  const g = M.newGame(2, 3); const before = JSON.stringify({ b: g.board, p: g.pool, s: g.score, m: g.moves });
+  for (const d of ['left', 'up', 'right', 'down']) { if (M.move(g, d).moved) break; }
+  eq(M.undo(g), true); eq(JSON.stringify({ b: g.board, p: g.pool, s: g.score, m: g.moves }), before);
 });
-t('makeRound: block size matches hosts, bundles appear, budget respected', () => {
-  let bundles = 0;
-  for (let round = 1; round <= 6; round++) for (let seed = 1; seed <= 10; seed++) {
-    const reqs = F.makeRound(round, F.rng(seed * 31 + round));
-    let total = 0;
-    for (const r of reqs) {
-      eq(S.blockSize(S.prefixForHosts(r.hosts)), r.size); eq(r.names.length, r.cells.length);
-      total += r.size * r.cells.length; if (r.cells.length > 1) bundles++;
-    }
-    if (total > F.W * F.H) throw new Error('over budget');
+t('stuck detection: a full board with no sibling neighbours is lost; one with a pair is not', () => {
+  const g = M.newGame(2, 1); const parent = S.parseCidr('172.16.0.0/24');
+  const tiles = []; for (let i = 0; i < 16; i++) tiles.push({ start: parent.start + i * 16, prefix: 28 });
+  const adjacentSibling = (order) => { for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) { const a = tiles[order[r * 4 + c]]; for (const [dr, dc] of [[0, 1], [1, 0]]) { if (r + dr > 3 || c + dc > 3) continue; if (M.areSiblings(a, tiles[order[(r + dr) * 4 + c + dc]])) return true; } } return false; };
+  const rnd = M.rng(7); let order, tries = 0;
+  do { order = [...Array(16).keys()]; for (let i = 15; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; } } while (adjacentSibling(order) && ++tries < 5000);
+  if (tries >= 5000) throw new Error('could not build a deadlocked board');
+  g.level = { ...g.level, parent: '172.16.0.0/24' }; g.parent = parent;
+  g.board = order.map((o, i) => ({ id: i + 1, ...tiles[o] })); g.pool = [];
+  M.checkEnd(g); eq(g.lost, true); eq(g.won, false);
+  // swap two tiles so that a sibling pair sits side by side: now a move exists
+  const g2 = M.newGame(2, 1); g2.level = g.level; g2.parent = parent; g2.pool = [];
+  const b2 = order.map((o, i) => ({ id: i + 1, ...tiles[o] })); const i0 = b2.findIndex((x) => x.start === tiles[0].start), i1 = b2.findIndex((x) => x.start === tiles[1].start);
+  const tmp = b2[i1]; b2[i1] = b2[i0 + 1 < 16 && (i0 % 4) < 3 ? i0 + 1 : i0 - 1]; b2[(i0 % 4) < 3 ? i0 + 1 : i0 - 1] = tmp;
+  g2.board = b2; M.checkEnd(g2); eq(g2.lost, !M.canMove(g2));
+});
+t('winning: a single parent-sized tile ends the game as won', () => {
+  const g = M.newGame(0, 1); const parent = S.parseCidr('10.0.0.0/26');
+  g.board = new Array(16).fill(null); g.board[5] = { id: 1, start: parent.start, prefix: parent.prefix }; g.pool = [];
+  M.checkEnd(g); eq(g.won, true);
+});
+function tilesAfter(board) { return board.filter(Boolean).length; }
+function stuckPairs(board) {   // adjacent equal-size non-siblings in any row or column
+  let n = 0;
+  for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) {
+    const a = board[r * 4 + c]; if (!a) continue;
+    for (const [dr, dc] of [[0, 1], [1, 0]]) { const rr = r + dr, cc = c + dc; if (rr > 3 || cc > 3) continue; const b = board[rr * 4 + cc]; if (b && b.prefix === a.prefix && !M.areSiblings(a, b)) n++; }
   }
-  if (bundles < 10) throw new Error('too few bundles: ' + bundles);
-});
-t('move steps by the cell width; resize snaps', () => {
-  const g = F.newGame(3); F.resize(g, -1); eq(g.piece.prefix, 29); eq(g.piece.w, 4);
-  F.move(g, 1); eq(g.piece.x % 4, 0);
-  F.resize(g, -1); eq(g.piece.prefix, 30); eq(g.piece.x % 2, 0); eq(F.resize(g, -1), false);
-});
-t('too-small piece does not lock and costs one mistake', () => {
-  const g = F.newGame(5);
-  while (S.usableHosts(g.piece.prefix) >= F.currentRequest(g).hosts && F.resize(g, -1)) {}
-  if (S.usableHosts(g.piece.prefix) >= F.currentRequest(g).hosts) return;
-  eq(F.hardDrop(g), 'blocked'); eq(F.step(g), 'blocked'); eq(g.mistakes, 1); eq(g.allocations.length, 0);
-});
-t('bundle locks as separate real subnets with the right addresses', () => {
-  const g = F.newGame(1);
-  g.reqs = [{ name: 'Branch x4', names: ['Branch A', 'Branch B', 'Branch C', 'Branch D'], hosts: 12, size: 16, shape: 'T', cells: F.SHAPES.T.map((c) => c.slice()) },
-            { name: 'Tail', names: ['Tail'], hosts: 12, size: 16, shape: 'single', cells: [[0, 0]] }];
-  g.idx = 0; F.respawn(g);
-  eq(g.piece.prefix, 28); eq(F.hardDrop(g), 'locked');
-  eq(g.allocations.length, 4);
-  const nets = g.allocations.map((a) => a.cidr); eq(new Set(nets).size, 4);
-  nets.forEach((c) => { const [ip, len] = c.split('/'); if (S.ipToInt(ip) % S.blockSize(Number(len))) throw new Error('misaligned ' + c); eq(len, '28'); });
-  eq(g.score >= 400, true);
-});
-t('bot (searches rotations and columns) plays 30 seeds with no misaligned lock', () => {
-  let cleared = 0;
-  for (let seed = 1; seed <= 30; seed++) {
-    const g = F.newGame(seed); let guard = 0;
-    while (!g.over && !g.roundDone && guard++ < 200) {
-      const best = S.prefixForHosts(F.currentRequest(g).hosts);
-      while (g.piece.prefix > best) F.resize(g, 1);
-      while (g.piece.prefix < best) F.resize(g, -1);
-      let pick = null;
-      for (let rot = 0; rot < 4; rot++) {
-        const p = g.piece;
-        for (let x = 0; x + F.extent(p.cells).cols * p.w <= F.W; x += p.w) {
-          if (F.collides(g, p, x, p.y)) continue;
-          const ox = p.x; p.x = x; const ly = F.landingY(g); p.x = ox;
-          const top = ly + F.extent(p.cells).rows * p.h;
-          if (!pick || top < pick.top || (top === pick.top && ly < pick.ly)) pick = { top, ly, x, rot };
+  return n;
+}
+function evalBoard(board, mergedSize) { return mergedSize * 3 - tilesAfter(board) * 40 - stuckPairs(board) * 25; }
+const reid = (board) => board.map((x) => x && { ...x, id: x.id || 99 });
+function search(board, depth) {   // best score reachable by sliding `depth` more times (spawns ignored)
+  let best = -1e9;
+  for (const d of ['left', 'up', 'right', 'down']) {
+    const r = M.slide(board, d); if (!r.moved) continue;
+    const m = r.merges.reduce((a, x) => a + S.blockSize(x.result.prefix), 0);
+    let v = evalBoard(r.board, m);
+    if (depth > 1) { const sub = search(reid(r.board), depth - 1); if (sub > -1e9) v += 0.9 * sub; }
+    if (v > best) best = v;
+  }
+  return best;
+}
+t('a depth-3 planning bot can win every level (winnability check, 20 seeds each)', () => {
+  const wins = {};
+  for (let li = 0; li < M.LEVELS.length; li++) {
+    wins[li + 1] = 0;
+    for (let seed = 1; seed <= 20; seed++) {
+      const g = M.newGame(li, seed); let guard = 0;
+      while (!g.won && !g.lost && guard++ < 800) {
+        let best = null;
+        for (const d of ['left', 'up', 'right', 'down']) {
+          const r = M.slide(g.board, d); if (!r.moved) continue;
+          const m = r.merges.reduce((a, x) => a + S.blockSize(x.result.prefix), 0);
+          const sc = evalBoard(r.board, m) + 0.9 * search(r.board.map((x) => x && { ...x, id: x.id || 99 }), 2);
+          if (!best || sc > best.sc) best = { d, sc };
         }
-        F.rotate(g, 1);
+        if (!best) break; M.move(g, best.d);
       }
-      if (!pick) { F.hardDrop(g); continue; }
-      for (let i = 0; i < pick.rot; i++) F.rotate(g, 1);
-      if (!F.collides(g, g.piece, pick.x, g.piece.y)) g.piece.x = pick.x;
-      F.hardDrop(g);
+      if (g.won) wins[li + 1]++;
     }
-    g.allocations.forEach((a) => { const [ip, len] = a.cidr.split('/'); if (S.ipToInt(ip) % S.blockSize(Number(len))) throw new Error('misaligned ' + a.cidr); });
-    if (g.roundDone) cleared++;
   }
-  window.__cleared = cleared;
-  if (cleared < 8) throw new Error('bot only cleared ' + cleared + ' of 30');
+  window.__wins = JSON.stringify(wins);
+  for (const k of Object.keys(wins)) if (wins[k] < 3) throw new Error(`level ${k}: planning bot won only ${wins[k]}/20`);
 });
-document.getElementById('out').textContent = `RESULT pass=${pass} fail=${fail} bot_cleared=${window.__cleared}\n` + results.join('\n');
+document.getElementById('out').textContent = `RESULT pass=${pass} fail=${fail} wins=${window.__wins}\n` + results.join('\n');
 </script>

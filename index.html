@@ -11,47 +11,57 @@
   <header class="top">
     <div>
       <h1>Address Space Packer</h1>
-      <p class="tag">Pack the address space. Waste nothing.</p>
+      <p class="tag">Merge the address space back together.</p>
     </div>
     <nav class="modes" aria-label="Game mode">
-      <button id="mode-arcade" class="mode on" aria-pressed="true">Arcade</button>
+      <button id="mode-merge" class="mode on" aria-pressed="true">Subnet 2048</button>
       <button id="mode-pack" class="mode" aria-pressed="false">Puzzle</button>
       <button id="mode-drill" class="mode" aria-pressed="false">Warm-up drill</button>
     </nav>
   </header>
 
   <main>
-    <section id="arcade">
-      <p class="brief">Subnets fall into a /24. Size each one for its request, rotate bundles of equal subnets into the gaps, and drop them. Waste fills the well.</p>
+    <section id="merge">
+      <p id="m-goal" class="goal"></p>
+      <ul class="rules">
+        <li><strong>Slide</strong> every block with the arrow keys (or WASD, the arrow buttons, or a swipe). A new block arrives after each move.</li>
+        <li><strong>Merge siblings.</strong> Two blocks merge only if they are the two halves of the same bigger block: same size, side by side, and the lower one starts on a multiple of the bigger block's size.</li>
+        <li>Example: 10.0.0.0/28 + 10.0.0.16/28 = 10.0.0.0/27. But 10.0.0.16/28 + 10.0.0.32/28 cannot merge, because a /27 cannot start at .16.</li>
+      </ul>
+      <nav id="m-levels" class="levels" aria-label="Levels"></nav>
+      <h2 id="m-title"></h2>
+      <p id="m-brief" class="brief"></p>
       <div class="arcade-layout">
-        <canvas id="board" aria-label="Falling subnet blocks inside a /24 address map"></canvas>
+        <div class="boardcol">
+          <div id="m-board" class="mboard" role="grid" aria-label="Subnet blocks"></div>
+          <p class="hint">Address map of the whole block. Hatched pieces have not arrived yet.</p>
+          <div id="m-map" class="mmap" aria-hidden="true"></div>
+        </div>
         <aside class="panel">
           <dl class="stats">
-            <div><dt>Score</dt><dd id="a-score">0</dd></div>
-            <div><dt>Best</dt><dd id="a-best">0</dd></div>
-            <div><dt>Round</dt><dd id="a-round">1</dd></div>
-            <div><dt>Left</dt><dd id="a-left">0</dd></div>
+            <div><dt>Moves</dt><dd id="m-moves">0</dd></div>
+            <div><dt>Score</dt><dd id="m-score">0</dd></div>
+            <div><dt>Waiting</dt><dd id="m-pool">0</dd></div>
+            <div><dt>Best</dt><dd id="m-best">-</dd></div>
           </dl>
-          <h3>Falling now</h3>
-          <p id="a-req" class="big">-</p>
-          <p id="a-piece" class="hint"></p>
-          <h3>Next</h3>
-          <p id="a-next" class="hint">-</p>
-          <p id="a-msg" class="message" role="status" aria-live="polite"></p>
-          <button id="arcade-start">Start</button>
-          <h3>Controls</h3>
-          <p class="hint keys"><kbd>&larr;</kbd><kbd>&rarr;</kbd> move &nbsp; <kbd>&uarr;</kbd>/<kbd>X</kbd> rotate &nbsp; <kbd>Z</kbd> rotate back<br><kbd>A</kbd> bigger block &nbsp; <kbd>S</kbd> smaller block<br><kbd>&darr;</kbd> soft drop &nbsp; <kbd>Space</kbd> hard drop &nbsp; <kbd>P</kbd> pause</p>
-          <div class="touch" aria-label="Touch controls">
-            <button id="t-left" aria-label="Move left">&larr;</button>
-            <button id="t-right" aria-label="Move right">&rarr;</button>
-            <button id="t-rotate" aria-label="Rotate">Rotate</button>
-            <button id="t-shrink" aria-label="Smaller block">Smaller</button>
-            <button id="t-grow" aria-label="Bigger block">Bigger</button>
-            <button id="t-down" aria-label="Soft drop">&darr;</button>
-            <button id="t-drop" aria-label="Hard drop">Drop</button>
+          <p id="m-msg" class="message" role="status" aria-live="polite"></p>
+          <div class="actions">
+            <button id="m-undo">Undo</button>
+            <button id="m-hint">Hint</button>
+            <button id="m-restart">Restart</button>
           </div>
-          <h3>Your subnet plan</h3>
-          <ol id="a-log" class="log"></ol>
+          <div class="dpad" aria-label="Slide controls">
+            <button id="m-up" aria-label="Slide up">&uarr;</button>
+            <button id="m-left" aria-label="Slide left">&larr;</button>
+            <button id="m-down" aria-label="Slide down">&darr;</button>
+            <button id="m-right" aria-label="Slide right">&rarr;</button>
+          </div>
+          <div id="m-done" class="done" hidden>
+            <h3 id="m-done-title"></h3>
+            <p id="m-done-text"></p>
+            <button id="m-next">Next level</button>
+          </div>
+          <p class="hint keys"><kbd>&larr;</kbd><kbd>&uarr;</kbd><kbd>&darr;</kbd><kbd>&rarr;</kbd> or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> slide &nbsp; <kbd>U</kbd> undo &nbsp; <kbd>H</kbd> hint &nbsp; <kbd>R</kbd> restart</p>
         </aside>
       </div>
     </section>
