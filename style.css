@@ -43,3 +43,18 @@ button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .drill-options { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
 .drill-options button { min-width: 90px; font-size: 1.1rem; }
 @media (prefers-reduced-motion: no-preference) { .cell, button { transition: border-color .15s, outline-color .15s; } }
+
+.arcade-layout { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; margin-top: 8px; }
+#board { max-width: 100%; height: auto; border: 2px solid var(--line); border-radius: 8px; background: #080c18; image-rendering: crisp-edges; }
+.panel { flex: 1 1 260px; min-width: 240px; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 0; }
+.stats div { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; text-align: center; }
+.stats dt { font-size: .7rem; color: var(--muted); text-transform: uppercase; } .stats dd { margin: 0; font: 700 1.2rem ui-monospace, monospace; }
+.big { font: 700 1.2rem ui-monospace, monospace; margin: 4px 0; }
+.good { color: var(--good); } .err { color: var(--bad); }
+kbd { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 0 6px; font: .85rem ui-monospace, monospace; }
+.keys { line-height: 2; }
+.touch { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 8px 0; }
+.touch button { padding: 10px 4px; touch-action: manipulation; }
+.log { margin: 0; padding-left: 20px; font: .85rem ui-monospace, monospace; color: var(--muted); max-height: 180px; overflow: auto; }
+#arcade-start { margin: 8px 0; width: 100%; font-weight: 700; }

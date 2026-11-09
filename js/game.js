@@ -1,5 +1,6 @@
 import { intToIp, parseCidr, blockSize, usableHosts, prefixForHosts, isAligned, overlaps, describeBlock, findFreeSlot } from './subnet.js';
 import { LEVELS } from './levels.js';
+import { initFalling, setActive } from './falling.js';
 
 const $ = (id) => document.getElementById(id);
 const COLOURS = 9;
@@ -333,14 +334,19 @@ function startDrill() {
   nextQuestion();
 }
 
-function setMode(drillOn) {
-  $('pack').hidden = drillOn; $('drill').hidden = !drillOn;
-  $('mode-pack').classList.toggle('on', !drillOn); $('mode-drill').classList.toggle('on', drillOn);
-  $('mode-pack').setAttribute('aria-pressed', String(!drillOn));
-  $('mode-drill').setAttribute('aria-pressed', String(drillOn));
-  if (drillOn) startDrill();
+function setMode(mode) {
+  $('arcade').hidden = mode !== 'arcade'; $('pack').hidden = mode !== 'pack'; $('drill').hidden = mode !== 'drill';
+  ['arcade', 'pack', 'drill'].forEach((m) => {
+    $('mode-' + m).classList.toggle('on', m === mode);
+    $('mode-' + m).setAttribute('aria-pressed', String(m === mode));
+  });
+  setActive(mode === 'arcade');
+  if (mode === 'drill') startDrill();
 }
-$('mode-pack').addEventListener('click', () => setMode(false));
-$('mode-drill').addEventListener('click', () => setMode(true));
+$('mode-arcade').addEventListener('click', () => setMode('arcade'));
+$('mode-pack').addEventListener('click', () => setMode('pack'));
+$('mode-drill').addEventListener('click', () => setMode('drill'));
 
 startLevel(0);
+initFalling();
+setMode('arcade');

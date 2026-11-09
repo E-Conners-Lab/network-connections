@@ -2,6 +2,7 @@
 <script type="module">
 import * as S from '../js/subnet.js';
 import { LEVELS } from '../js/levels.js';
+import * as F from '../js/falling-core.js';
 const results = []; let pass = 0, fail = 0;
 function t(name, fn) { try { fn(); pass++; } catch (e) { fail++; results.push('FAIL ' + name + ': ' + e.message); } }
 function eq(a, b) { if (a !== b) throw new Error(`expected ${b}, got ${a}`); }
@@ -39,5 +40,104 @@ for (const L of LEVELS) {
     L.reserved.forEach((r) => { if (!S.isAligned(S.parseCidr(r.cidr).start, S.parseCidr(r.cidr).prefix)) throw new Error('reserved misaligned'); });
   });
 }
-document.getElementById('out').textContent = `RESULT pass=${pass} fail=${fail}\n` + results.join('\n');
+
+// ---- falling-block core ----
+t('Z-order: every aligned block is a rectangle covering exactly its address range', () => {
+  for (let prefix = 24; prefix <= 30; prefix++) {
+    const sh = F.shape(prefix);
+    for (let y = 0; y < F.H; y += sh.h) for (let x = 0; x < F.W; x += sh.w) {
+      const addrs = [];
+      for (let r = y; r < y + sh.h; r++) for (let c = x; c < x + sh.w; c++) addrs.push(F.morton(c, r));
+      addrs.sort((a, b) => a - b);
+      const start = addrs[0];
+      if (start % sh.size) throw new Error(`/${prefix} at ${x},${y} starts misaligned at ${start}`);
+      addrs.forEach((a, i) => { if (a !== start + i) throw new Error(`/${prefix} at ${x},${y} not contiguous`); });
+    }
+  }
+});
+t('shape dims: /30 2x2, /29 4x2, /28 4x4, /27 8x4, /26 8x8, /25 16x8, /24 16x16', () => {
+  const want = { 30: '2x2', 29: '4x2', 28: '4x4', 27: '8x4', 26: '8x8', 25: '16x8', 24: '16x16' };
+  for (const [p, d] of Object.entries(want)) { const s = F.shape(Number(p)); eq(s.w + 'x' + s.h, d); }
+});
+t('morton is a bijection on the 16x16 well', () => {
+  const seen = new Set(); for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) seen.add(F.morton(x, y)); eq(seen.size, 256);
+});
+t('rotation: 4 turns restore every shape; CW then CCW is identity', () => {
+  for (const [name, cells] of Object.entries(F.SHAPES)) {
+    let c = cells; for (let i = 0; i < 4; i++) c = F.rotateCW(c);
+    eq(JSON.stringify(c.slice().sort()), JSON.stringify(cells.slice().sort()));
+    eq(JSON.stringify(F.rotateCCW(F.rotateCW(cells)).slice().sort()), JSON.stringify(cells.slice().sort()));
+    eq(F.rotateCW(cells).length, cells.length);
+  }
+});
+t('rotating I turns 4x1 into 1x4; T has four distinct orientations', () => {
+  const e = F.extent(F.rotateCW(F.SHAPES.I)); eq(e.cols + 'x' + e.rows, '1x4');
+  const seen = new Set(); let c = F.SHAPES.T; for (let i = 0; i < 4; i++) { seen.add(JSON.stringify(c.slice().sort())); c = F.rotateCW(c); } eq(seen.size, 4);
+});
+t('makeRound: block size matches hosts, bundles appear, budget respected', () => {
+  let bundles = 0;
+  for (let round = 1; round <= 6; round++) for (let seed = 1; seed <= 10; seed++) {
+    const reqs = F.makeRound(round, F.rng(seed * 31 + round));
+    let total = 0;
+    for (const r of reqs) {
+      eq(S.blockSize(S.prefixForHosts(r.hosts)), r.size); eq(r.names.length, r.cells.length);
+      total += r.size * r.cells.length; if (r.cells.length > 1) bundles++;
+    }
+    if (total > F.W * F.H) throw new Error('over budget');
+  }
+  if (bundles < 10) throw new Error('too few bundles: ' + bundles);
+});
+t('move steps by the cell width; resize snaps', () => {
+  const g = F.newGame(3); F.resize(g, -1); eq(g.piece.prefix, 29); eq(g.piece.w, 4);
+  F.move(g, 1); eq(g.piece.x % 4, 0);
+  F.resize(g, -1); eq(g.piece.prefix, 30); eq(g.piece.x % 2, 0); eq(F.resize(g, -1), false);
+});
+t('too-small piece does not lock and costs one mistake', () => {
+  const g = F.newGame(5);
+  while (S.usableHosts(g.piece.prefix) >= F.currentRequest(g).hosts && F.resize(g, -1)) {}
+  if (S.usableHosts(g.piece.prefix) >= F.currentRequest(g).hosts) return;
+  eq(F.hardDrop(g), 'blocked'); eq(F.step(g), 'blocked'); eq(g.mistakes, 1); eq(g.allocations.length, 0);
+});
+t('bundle locks as separate real subnets with the right addresses', () => {
+  const g = F.newGame(1);
+  g.reqs = [{ name: 'Branch x4', names: ['Branch A', 'Branch B', 'Branch C', 'Branch D'], hosts: 12, size: 16, shape: 'T', cells: F.SHAPES.T.map((c) => c.slice()) },
+            { name: 'Tail', names: ['Tail'], hosts: 12, size: 16, shape: 'single', cells: [[0, 0]] }];
+  g.idx = 0; F.respawn(g);
+  eq(g.piece.prefix, 28); eq(F.hardDrop(g), 'locked');
+  eq(g.allocations.length, 4);
+  const nets = g.allocations.map((a) => a.cidr); eq(new Set(nets).size, 4);
+  nets.forEach((c) => { const [ip, len] = c.split('/'); if (S.ipToInt(ip) % S.blockSize(Number(len))) throw new Error('misaligned ' + c); eq(len, '28'); });
+  eq(g.score >= 400, true);
+});
+t('bot (searches rotations and columns) plays 30 seeds with no misaligned lock', () => {
+  let cleared = 0;
+  for (let seed = 1; seed <= 30; seed++) {
+    const g = F.newGame(seed); let guard = 0;
+    while (!g.over && !g.roundDone && guard++ < 200) {
+      const best = S.prefixForHosts(F.currentRequest(g).hosts);
+      while (g.piece.prefix > best) F.resize(g, 1);
+      while (g.piece.prefix < best) F.resize(g, -1);
+      let pick = null;
+      for (let rot = 0; rot < 4; rot++) {
+        const p = g.piece;
+        for (let x = 0; x + F.extent(p.cells).cols * p.w <= F.W; x += p.w) {
+          if (F.collides(g, p, x, p.y)) continue;
+          const ox = p.x; p.x = x; const ly = F.landingY(g); p.x = ox;
+          const top = ly + F.extent(p.cells).rows * p.h;
+          if (!pick || top < pick.top || (top === pick.top && ly < pick.ly)) pick = { top, ly, x, rot };
+        }
+        F.rotate(g, 1);
+      }
+      if (!pick) { F.hardDrop(g); continue; }
+      for (let i = 0; i < pick.rot; i++) F.rotate(g, 1);
+      if (!F.collides(g, g.piece, pick.x, g.piece.y)) g.piece.x = pick.x;
+      F.hardDrop(g);
+    }
+    g.allocations.forEach((a) => { const [ip, len] = a.cidr.split('/'); if (S.ipToInt(ip) % S.blockSize(Number(len))) throw new Error('misaligned ' + a.cidr); });
+    if (g.roundDone) cleared++;
+  }
+  window.__cleared = cleared;
+  if (cleared < 8) throw new Error('bot only cleared ' + cleared + ' of 30');
+});
+document.getElementById('out').textContent = `RESULT pass=${pass} fail=${fail} bot_cleared=${window.__cleared}\n` + results.join('\n');
 </script>
