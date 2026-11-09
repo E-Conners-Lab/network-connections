@@ -1,175 +1,92 @@
 <!doctype html><meta charset="utf-8"><title>tests</title><pre id="out">running</pre>
 <script type="module">
-import * as S from '../js/subnet.js';
-import { LEVELS } from '../js/levels.js';
-import * as M from '../js/merge-core.js';
+import * as C from '../js/connections-core.js';
 const results = []; let pass = 0, fail = 0;
 function t(name, fn) { try { fn(); pass++; } catch (e) { fail++; results.push('FAIL ' + name + ': ' + e.message); } }
-function eq(a, b) { if (a !== b) throw new Error(`expected ${b}, got ${a}`); }
+function eq(a, b) { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(`expected ${JSON.stringify(b)}, got ${JSON.stringify(a)}`); }
 
-t('ip round trip', () => eq(S.intToIp(S.ipToInt('192.168.1.130')), '192.168.1.130'));
-t('high-bit ip', () => eq(S.intToIp(S.ipToInt('255.255.255.255')), '255.255.255.255'));
-t('usable /24', () => eq(S.usableHosts(24), 254));
-t('usable /30', () => eq(S.usableHosts(30), 2));
-t('lan /31 unusable', () => eq(S.usableHosts(31), 0));
-t('link /31 is 2 (RFC 3021)', () => eq(S.usableHosts(31, 'link'), 2));
-t('prefixForHosts 100 -> /25', () => eq(S.prefixForHosts(100), 25));
-t('prefixForHosts 126 -> /25', () => eq(S.prefixForHosts(126), 25));
-t('prefixForHosts 127 -> /24', () => eq(S.prefixForHosts(127), 24));
-t('prefixForHosts 2 lan -> /30', () => eq(S.prefixForHosts(2), 30));
-t('prefixForHosts 2 link -> /31', () => eq(S.prefixForHosts(2, 'link'), 31));
-t('alignment', () => { eq(S.isAligned(S.ipToInt('10.0.0.64'), 26), true); eq(S.isAligned(S.ipToInt('10.0.0.48'), 26), false); });
-t('overlap', () => { eq(S.overlaps({start:0,size:64},{start:32,size:32}), true); eq(S.overlaps({start:0,size:64},{start:64,size:64}), false); });
-t('describeBlock', () => { const d = S.describeBlock(S.ipToInt('10.0.0.64'), 26); eq(d.broadcast, '10.0.0.127'); eq(d.first, '10.0.0.65'); eq(d.last, '10.0.0.126'); });
+const { puzzles } = await (await fetch('../data/puzzles.json')).json();
+const P = puzzles[0];                                  // Network Basics
+const pick = (g, gi) => P.groups[gi].items.forEach((it) => C.toggle(g, it));
+const game = (seed = 1) => C.newGame(P, C.rng(seed));
 
-for (const L of LEVELS) {
-  t(`level ${L.id} solvable and unit fine enough`, () => {
-    const parent = S.parseCidr(L.parent);
-    const used = L.reserved.map((r) => S.parseCidr(r.cidr));
-    const unitSize = S.blockSize(L.unit);
-    const reqs = L.requests.map((r) => ({ ...r, p: S.prefixForHosts(r.hosts, r.kind || 'lan') }));
-    reqs.sort((a, b) => a.p - b.p);
-    for (const r of reqs) {
-      if (r.p > L.unit) throw new Error(`${r.name} needs /${r.p}, finer than unit /${L.unit}`);
-      const s = S.findFreeSlot(parent, used, r.p);
-      if (s < 0) throw new Error(`no slot for ${r.name} /${r.p}`);
-      used.push({ start: s, size: S.blockSize(r.p) });
-    }
-    if (parent.size % unitSize) throw new Error('unit does not divide parent');
-    if (parent.size / unitSize > 128) throw new Error('too many cells');
-    L.reserved.forEach((r) => { if (!S.isAligned(S.parseCidr(r.cidr).start, S.parseCidr(r.cidr).prefix)) throw new Error('reserved misaligned'); });
-  });
-}
+// ---- shipped puzzles ----
+t('eight puzzles ship, ids 1..8 in order', () => { eq(puzzles.length, 8); eq(puzzles.map((p) => p.id), [1, 2, 3, 4, 5, 6, 7, 8]); });
+puzzles.forEach((p) => t(`puzzle ${p.id} "${p.title}" is valid`, () => { const e = C.validatePuzzle(p); if (e.length) throw new Error(e.join('; ')); }));
+t('puzzle titles are unique', () => eq(new Set(puzzles.map((p) => p.title)).size, 8));
+t('no item is blank, and every why is a sentence', () => puzzles.forEach((p) => p.groups.forEach((g) => { if (g.why.length < 15) throw new Error(g.name); })));
 
-// ---- Subnet 2048 core ----
-const T = (cidr, id = 1) => { const c = S.parseCidr(cidr); return { id, start: c.start, prefix: c.prefix }; };
-t('siblings: halves of the same parent only', () => {
-  eq(M.areSiblings(T('10.0.0.0/28'), T('10.0.0.16/28')), true);
-  eq(M.areSiblings(T('10.0.0.16/28'), T('10.0.0.0/28')), true);
-  eq(M.areSiblings(T('10.0.0.16/28'), T('10.0.0.32/28')), false);   // adjacent and equal, but not siblings
-  eq(M.areSiblings(T('10.0.0.0/28'), T('10.0.0.16/29')), false);    // different sizes
-  eq(M.areSiblings(T('10.0.0.0/28'), T('10.0.0.0/28')), false);
-  eq(M.areSiblings(T('10.0.0.32/27'), T('10.0.0.0/27')), true);     // together they make 10.0.0.0/26
-  eq(M.areSiblings(T('10.0.0.32/27'), T('10.0.0.64/27')), false);   // adjacent and equal, but different /26 parents
+// ---- validator rejects bad data ----
+const clone = () => JSON.parse(JSON.stringify(P));
+t('validator: three groups', () => { const p = clone(); p.groups.pop(); if (!C.validatePuzzle(p).length) throw new Error('accepted'); });
+t('validator: duplicate item across groups', () => { const p = clone(); p.groups[1].items[0] = p.groups[0].items[0]; if (!C.validatePuzzle(p).some((e) => e.includes('appears in'))) throw new Error('missed'); });
+t('validator: duplicate differing only by case', () => { const p = clone(); p.groups[1].items[0] = p.groups[0].items[0].toLowerCase(); if (!C.validatePuzzle(p).length) throw new Error('missed'); });
+t('validator: group with 3 items', () => { const p = clone(); p.groups[2].items.pop(); if (!C.validatePuzzle(p).length) throw new Error('missed'); });
+t('validator: missing why or name', () => { const p = clone(); p.groups[0].why = ''; p.groups[1].name = ' '; eq(C.validatePuzzle(p).length, 2); });
+t('newGame refuses an invalid puzzle', () => { const p = clone(); p.groups.pop(); let threw = false; try { C.newGame(p); } catch { threw = true; } eq(threw, true); });
+
+// ---- rules ----
+t('new game: 16 distinct tiles, nothing selected, 4 mistakes left', () => { const g = game(); eq(g.tiles.length, 16); eq(new Set(g.tiles).size, 16); eq(g.selected, []); eq(C.mistakesLeft(g), 4); });
+t('shuffle with the same seed is reproducible, with another seed differs', () => { eq(game(3).tiles, game(3).tiles); if (JSON.stringify(game(3).tiles) === JSON.stringify(game(4).tiles)) throw new Error('same order'); });
+t('toggle selects, deselects, and caps at four', () => {
+  const g = game(); const [a, b, c, d, e] = g.tiles;
+  [a, b, c, d].forEach((x) => eq(C.toggle(g, x), true)); eq(g.selected.length, 4);
+  eq(C.toggle(g, e), false); eq(g.selected.length, 4);
+  eq(C.toggle(g, a), true); eq(g.selected.length, 3);
+  eq(C.toggle(g, 'not a tile'), false);
 });
-t('siblingStart and merge result', () => {
-  eq(S.intToIp(M.siblingStart(T('10.0.0.48/28'))), '10.0.0.32');
-  eq(S.intToIp(M.siblingStart(T('10.0.0.0/26'))), '10.0.0.64');
-  const m = M.mergedOf(T('10.0.0.16/28'), T('10.0.0.0/28')); eq(S.intToIp(m.start) + '/' + m.prefix, '10.0.0.0/27');
+t('submit with fewer than four is incomplete and free', () => { const g = game(); C.toggle(g, g.tiles[0]); eq(C.submit(g).type, 'incomplete'); eq(g.mistakes, 0); });
+t('a correct group is solved, removed and clears the selection', () => {
+  const g = game(); pick(g, 0); const r = C.submit(g);
+  eq(r, { type: 'correct', group: 0 }); eq(g.tiles.length, 12); eq(g.selected, []); eq(g.solved, [0]); eq(g.mistakes, 0);
+  P.groups[0].items.forEach((it) => { if (g.tiles.includes(it)) throw new Error('still in play'); });
 });
-t('every level pool tiles the parent exactly (30 seeds each)', () => {
-  for (const L of M.LEVELS) for (let seed = 1; seed <= 30; seed++) {
-    const pool = M.makePool(L, M.rng(seed)).slice().sort((a, b) => a.start - b.start);
-    const parent = S.parseCidr(L.parent); let at = parent.start;
-    for (const b of pool) { if (b.start !== at) throw new Error(`level ${L.id} gap/overlap at ${S.intToIp(at)}`); if (b.start % S.blockSize(b.prefix)) throw new Error('misaligned'); at += S.blockSize(b.prefix); }
-    if (at !== parent.start + parent.size) throw new Error(`level ${L.id} does not fill the parent`);
-  }
+t('a 2+2 guess is a plain mistake', () => {
+  const g = game(); [...P.groups[0].items.slice(0, 2), ...P.groups[1].items.slice(0, 2)].forEach((it) => C.toggle(g, it));
+  eq(C.submit(g).type, 'wrong'); eq(g.mistakes, 1); eq(g.msg, 'Not quite.'); eq(g.selected.length, 4);
 });
-const empty = () => new Array(16).fill(null);
-t('slide left merges siblings', () => {
-  const b = empty(); b[0] = T('10.0.0.0/28', 1); b[3] = T('10.0.0.16/28', 2);
-  const r = M.slide(b, 'left');
-  eq(r.merges.length, 1); eq(r.board[0].prefix, 27); eq(S.intToIp(r.board[0].start), '10.0.0.0'); eq(r.board[3], null); eq(r.moved, true);
+t('a 3+1 guess says one away', () => {
+  const g = game(); [...P.groups[2].items.slice(0, 3), P.groups[3].items[0]].forEach((it) => C.toggle(g, it));
+  eq(C.submit(g).type, 'one-away'); eq(g.msg, 'One away!'); eq(g.mistakes, 1);
 });
-t('equal-size non-siblings block each other and report why', () => {
-  const b = empty(); b[0] = T('10.0.0.16/28', 1); b[1] = T('10.0.0.32/28', 2);
-  const r = M.slide(b, 'left');
-  eq(r.merges.length, 0); eq(r.blocked.length, 1); eq(r.moved, false);
+t('a 1+1+1+1 guess is a plain mistake, not one away', () => {
+  const g = game(); P.groups.forEach((gr) => C.toggle(g, gr.items[0])); eq(C.submit(g).type, 'wrong');
 });
-t('one merge per tile per move', () => {
-  const b = empty(); ['10.0.0.0/28', '10.0.0.16/28', '10.0.0.32/28', '10.0.0.48/28'].forEach((c, i) => { b[i] = T(c, i + 1); });
-  const r = M.slide(b, 'left');
-  eq(r.merges.length, 2); eq(r.board[0].prefix, 27); eq(r.board[1].prefix, 27); eq(r.board[2], null);
+t('repeating a guess is free', () => {
+  const g = game(); const set = [...P.groups[0].items.slice(0, 2), ...P.groups[1].items.slice(0, 2)];
+  set.forEach((it) => C.toggle(g, it)); C.submit(g);
+  C.deselectAll(g); set.slice().reverse().forEach((it) => C.toggle(g, it));
+  eq(C.submit(g).type, 'duplicate'); eq(g.mistakes, 1);
 });
-t('slide directions: up/down/right', () => {
-  const b = empty(); b[0] = T('10.0.0.0/28', 1); b[12] = T('10.0.0.16/28', 2);   // column 0, rows 0 and 3
-  eq(M.slide(b, 'down').merges.length, 1); eq(M.slide(b, 'up').merges.length, 1);
-  eq(M.slide(b, 'down').board[12].prefix, 27); eq(M.slide(b, 'up').board[0].prefix, 27);
-  const c = empty(); c[0] = T('10.0.0.0/28', 1); c[2] = T('10.0.0.16/28', 2);
-  eq(M.slide(c, 'right').board[3].prefix, 27);
+t('four mistakes lose and reveal the unsolved groups in order', () => {
+  const g = game(); pick(g, 1); C.submit(g);
+  const bad = [[0, 2], [0, 3], [2, 3], [0, 2, 3]];
+  const tries = [[P.groups[0].items[0], P.groups[0].items[1], P.groups[2].items[0], P.groups[2].items[1]],
+                 [P.groups[0].items[0], P.groups[0].items[1], P.groups[3].items[0], P.groups[3].items[1]],
+                 [P.groups[2].items[0], P.groups[2].items[1], P.groups[3].items[0], P.groups[3].items[1]],
+                 [P.groups[0].items[2], P.groups[0].items[3], P.groups[2].items[2], P.groups[2].items[3]]];
+  tries.forEach((s) => { C.deselectAll(g); s.forEach((it) => C.toggle(g, it)); C.submit(g); });
+  eq(g.lost, true); eq(g.won, false); eq(g.mistakes, 4); eq(g.revealed, [0, 2, 3]);
+  eq(C.toggle(g, g.tiles[0]), false); eq(C.submit(g).type, 'over');
 });
-function coverage(g) {
-  const all = [...g.board.filter(Boolean), ...g.pool].sort((a, b) => a.start - b.start);
-  let at = g.parent.start;
-  for (const x of all) { if (x.start !== at) return false; at += S.blockSize(x.prefix); }
-  return at === g.parent.start + g.parent.size;
-}
-t('coverage invariant holds through 300 random moves on every level', () => {
-  for (let li = 0; li < M.LEVELS.length; li++) {
-    const g = M.newGame(li, 5); const r = M.rng(99); const dirs = ['left', 'right', 'up', 'down'];
-    for (let i = 0; i < 300 && !g.won && !g.lost; i++) { M.move(g, dirs[Math.floor(r() * 4)]); if (!coverage(g)) throw new Error(`level ${li + 1} coverage broken at move ${i}`); }
-    if (!coverage(g)) throw new Error('final coverage');
-  }
+t('solving all four wins, any order', () => { const g = game(7); [3, 1, 0, 2].forEach((gi) => { pick(g, gi); C.submit(g); }); eq(g.won, true); eq(g.tiles.length, 0); eq(g.solved, [3, 1, 0, 2]); });
+t('shuffle keeps the same tiles and the selection', () => {
+  const g = game(); C.toggle(g, g.tiles[0]); const sel = g.selected.slice(); const before = g.tiles.slice().sort();
+  C.shuffle(g); eq(g.tiles.slice().sort(), before); eq(g.selected, sel);
 });
-t('undo restores the exact previous state', () => {
-  const g = M.newGame(2, 3); const before = JSON.stringify({ b: g.board, p: g.pool, s: g.score, m: g.moves });
-  for (const d of ['left', 'up', 'right', 'down']) { if (M.move(g, d).moved) break; }
-  eq(M.undo(g), true); eq(JSON.stringify({ b: g.board, p: g.pool, s: g.score, m: g.moves }), before);
+t('shareText: one row of four squares per guess, header and outcome', () => {
+  const g = game(); pick(g, 0); C.submit(g);
+  [...P.groups[1].items.slice(0, 3), P.groups[2].items[0]].forEach((it) => C.toggle(g, it)); C.submit(g);
+  const lines = C.shareText(g).split('\n');
+  eq(lines[0], 'Network Connections #1 Network Basics'); eq(lines[1], 'Not solved');
+  eq(lines[2], '\u{1F7E8}'.repeat(4)); eq(lines[3], '\u{1F7E9}'.repeat(3) + '\u{1F7E6}'); eq(lines.length, 4);
+  [1, 2, 3].forEach((gi) => { C.deselectAll(g); pick(g, gi); C.submit(g); });
+  eq(C.shareText(g).split('\n')[1], 'Solved with 1 mistake');
 });
-t('stuck detection: a full board with no sibling neighbours is lost; one with a pair is not', () => {
-  const g = M.newGame(2, 1); const parent = S.parseCidr('172.16.0.0/24');
-  const tiles = []; for (let i = 0; i < 16; i++) tiles.push({ start: parent.start + i * 16, prefix: 28 });
-  const adjacentSibling = (order) => { for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) { const a = tiles[order[r * 4 + c]]; for (const [dr, dc] of [[0, 1], [1, 0]]) { if (r + dr > 3 || c + dc > 3) continue; if (M.areSiblings(a, tiles[order[(r + dr) * 4 + c + dc]])) return true; } } return false; };
-  const rnd = M.rng(7); let order, tries = 0;
-  do { order = [...Array(16).keys()]; for (let i = 15; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; } } while (adjacentSibling(order) && ++tries < 5000);
-  if (tries >= 5000) throw new Error('could not build a deadlocked board');
-  g.level = { ...g.level, parent: '172.16.0.0/24' }; g.parent = parent;
-  g.board = order.map((o, i) => ({ id: i + 1, ...tiles[o] })); g.pool = [];
-  M.checkEnd(g); eq(g.lost, true); eq(g.won, false);
-  // swap two tiles so that a sibling pair sits side by side: now a move exists
-  const g2 = M.newGame(2, 1); g2.level = g.level; g2.parent = parent; g2.pool = [];
-  const b2 = order.map((o, i) => ({ id: i + 1, ...tiles[o] })); const i0 = b2.findIndex((x) => x.start === tiles[0].start), i1 = b2.findIndex((x) => x.start === tiles[1].start);
-  const tmp = b2[i1]; b2[i1] = b2[i0 + 1 < 16 && (i0 % 4) < 3 ? i0 + 1 : i0 - 1]; b2[(i0 % 4) < 3 ? i0 + 1 : i0 - 1] = tmp;
-  g2.board = b2; M.checkEnd(g2); eq(g2.lost, !M.canMove(g2));
-});
-t('winning: a single parent-sized tile ends the game as won', () => {
-  const g = M.newGame(0, 1); const parent = S.parseCidr('10.0.0.0/26');
-  g.board = new Array(16).fill(null); g.board[5] = { id: 1, start: parent.start, prefix: parent.prefix }; g.pool = [];
-  M.checkEnd(g); eq(g.won, true);
-});
-function tilesAfter(board) { return board.filter(Boolean).length; }
-function stuckPairs(board) {   // adjacent equal-size non-siblings in any row or column
-  let n = 0;
-  for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) {
-    const a = board[r * 4 + c]; if (!a) continue;
-    for (const [dr, dc] of [[0, 1], [1, 0]]) { const rr = r + dr, cc = c + dc; if (rr > 3 || cc > 3) continue; const b = board[rr * 4 + cc]; if (b && b.prefix === a.prefix && !M.areSiblings(a, b)) n++; }
-  }
-  return n;
-}
-function evalBoard(board, mergedSize) { return mergedSize * 3 - tilesAfter(board) * 40 - stuckPairs(board) * 25; }
-const reid = (board) => board.map((x) => x && { ...x, id: x.id || 99 });
-function search(board, depth) {   // best score reachable by sliding `depth` more times (spawns ignored)
-  let best = -1e9;
-  for (const d of ['left', 'up', 'right', 'down']) {
-    const r = M.slide(board, d); if (!r.moved) continue;
-    const m = r.merges.reduce((a, x) => a + S.blockSize(x.result.prefix), 0);
-    let v = evalBoard(r.board, m);
-    if (depth > 1) { const sub = search(reid(r.board), depth - 1); if (sub > -1e9) v += 0.9 * sub; }
-    if (v > best) best = v;
-  }
-  return best;
-}
-t('a depth-3 planning bot can win every level (winnability check, 20 seeds each)', () => {
-  const wins = {};
-  for (let li = 0; li < M.LEVELS.length; li++) {
-    wins[li + 1] = 0;
-    for (let seed = 1; seed <= 20; seed++) {
-      const g = M.newGame(li, seed); let guard = 0;
-      while (!g.won && !g.lost && guard++ < 800) {
-        let best = null;
-        for (const d of ['left', 'up', 'right', 'down']) {
-          const r = M.slide(g.board, d); if (!r.moved) continue;
-          const m = r.merges.reduce((a, x) => a + S.blockSize(x.result.prefix), 0);
-          const sc = evalBoard(r.board, m) + 0.9 * search(r.board.map((x) => x && { ...x, id: x.id || 99 }), 2);
-          if (!best || sc > best.sc) best = { d, sc };
-        }
-        if (!best) break; M.move(g, best.d);
-      }
-      if (g.won) wins[li + 1]++;
-    }
-  }
-  window.__wins = JSON.stringify(wins);
-  for (const k of Object.keys(wins)) if (wins[k] < 3) throw new Error(`level ${k}: planning bot won only ${wins[k]}/20`);
-});
-document.getElementById('out').textContent = `RESULT pass=${pass} fail=${fail} wins=${window.__wins}\n` + results.join('\n');
+t('every puzzle can be solved through the engine', () => puzzles.forEach((p) => {
+  const g = C.newGame(p, C.rng(p.id)); p.groups.forEach((gr) => { gr.items.forEach((it) => C.toggle(g, it)); eq(C.submit(g).type, 'correct'); });
+  eq(g.won, true);
+}));
+
+document.getElementById('out').textContent = `RESULT pass=${pass} fail=${fail}\n` + results.join('\n');
 </script>

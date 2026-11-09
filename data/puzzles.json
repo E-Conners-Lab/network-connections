@@ -1,0 +1,372 @@
+{
+  "puzzles": [
+    {
+      "id": 1,
+      "title": "Network Basics",
+      "groups": [
+        {
+          "name": "Routing protocols",
+          "items": [
+            "OSPF",
+            "BGP",
+            "EIGRP",
+            "RIP"
+          ],
+          "why": "They exchange routes between routers."
+        },
+        {
+          "name": "DHCP lease steps (DORA)",
+          "items": [
+            "Discover",
+            "Offer",
+            "Request",
+            "Acknowledge"
+          ],
+          "why": "The four messages a client and server swap to hand out an address."
+        },
+        {
+          "name": "TCP flags",
+          "items": [
+            "SYN",
+            "ACK",
+            "FIN",
+            "RST"
+          ],
+          "why": "Control bits in the TCP header."
+        },
+        {
+          "name": "First-hop redundancy",
+          "items": [
+            "HSRP",
+            "VRRP",
+            "GLBP",
+            "CARP"
+          ],
+          "why": "Routers share a virtual gateway address so hosts survive a failure."
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Which Layer?",
+      "groups": [
+        {
+          "name": "Layer 1: physical",
+          "items": [
+            "Hub",
+            "Repeater",
+            "Cat6 cable",
+            "Fiber optic"
+          ],
+          "why": "Bits on a wire or light, with no addressing."
+        },
+        {
+          "name": "Layer 2: data link",
+          "items": [
+            "Switch",
+            "MAC address",
+            "VLAN",
+            "Frame"
+          ],
+          "why": "Local delivery using MAC addresses."
+        },
+        {
+          "name": "Layer 3: network",
+          "items": [
+            "Router",
+            "IP address",
+            "Packet",
+            "ICMP"
+          ],
+          "why": "Delivery between networks using IP."
+        },
+        {
+          "name": "Layer 4: transport",
+          "items": [
+            "Segment",
+            "Port number",
+            "TCP",
+            "UDP"
+          ],
+          "why": "End-to-end delivery between applications."
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Automation Toolbox",
+      "groups": [
+        {
+          "name": "HTTP methods",
+          "items": [
+            "GET",
+            "POST",
+            "PUT",
+            "DELETE"
+          ],
+          "why": "The verbs of a REST API."
+        },
+        {
+          "name": "Data formats",
+          "items": [
+            "JSON",
+            "YAML",
+            "XML",
+            "TOML"
+          ],
+          "why": "Ways to write structured data as text."
+        },
+        {
+          "name": "Python libraries for networks",
+          "items": [
+            "Netmiko",
+            "NAPALM",
+            "Nornir",
+            "ncclient"
+          ],
+          "why": "Python packages for talking to network devices (ncclient is a NETCONF client)."
+        },
+        {
+          "name": "Model-driven management",
+          "items": [
+            "YANG",
+            "NETCONF",
+            "RESTCONF",
+            "gNMI"
+          ],
+          "why": "A data model plus the protocols that read and change it."
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "DevOps for Networks",
+      "groups": [
+        {
+          "name": "Git commands",
+          "items": [
+            "clone",
+            "commit",
+            "push",
+            "rebase"
+          ],
+          "why": "Everyday version-control operations."
+        },
+        {
+          "name": "CI/CD tools",
+          "items": [
+            "Jenkins",
+            "GitLab CI",
+            "GitHub Actions",
+            "CircleCI"
+          ],
+          "why": "They run your tests and deployments when code changes."
+        },
+        {
+          "name": "Configuration management",
+          "items": [
+            "Ansible",
+            "Puppet",
+            "Chef",
+            "SaltStack"
+          ],
+          "why": "They push a desired configuration onto existing devices or servers."
+        },
+        {
+          "name": "Infrastructure provisioning",
+          "items": [
+            "Terraform",
+            "Pulumi",
+            "CloudFormation",
+            "Bicep"
+          ],
+          "why": "They create cloud infrastructure from a declared definition."
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Security",
+      "groups": [
+        {
+          "name": "Wi-Fi security protocols",
+          "items": [
+            "WEP",
+            "WPA",
+            "WPA2",
+            "WPA3"
+          ],
+          "why": "Each generation replaced the one before it."
+        },
+        {
+          "name": "VPNs and tunnels",
+          "items": [
+            "IPsec",
+            "WireGuard",
+            "OpenVPN",
+            "GRE"
+          ],
+          "why": "They carry traffic across another network."
+        },
+        {
+          "name": "AAA and directory services",
+          "items": [
+            "RADIUS",
+            "TACACS+",
+            "Kerberos",
+            "LDAP"
+          ],
+          "why": "They handle who you are and what you may do."
+        },
+        {
+          "name": "IEEE 802.1 standards",
+          "items": [
+            "802.1Q",
+            "802.1X",
+            "802.1D",
+            "802.1AB"
+          ],
+          "why": "VLAN tagging, port authentication, spanning tree and LLDP."
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Addresses and Delivery",
+      "groups": [
+        {
+          "name": "DNS record types",
+          "items": [
+            "A",
+            "AAAA",
+            "CNAME",
+            "MX"
+          ],
+          "why": "Entries a DNS zone can hold."
+        },
+        {
+          "name": "Ways to deliver a packet",
+          "items": [
+            "Unicast",
+            "Multicast",
+            "Broadcast",
+            "Anycast"
+          ],
+          "why": "One-to-one, one-to-group, one-to-all and one-to-nearest."
+        },
+        {
+          "name": "Services that use UDP",
+          "items": [
+            "DHCP",
+            "TFTP",
+            "NTP",
+            "SNMP"
+          ],
+          "why": "Simple request and response services that skip a TCP connection."
+        },
+        {
+          "name": "Not routed on the public internet",
+          "items": [
+            "10.0.0.0/8",
+            "192.168.0.0/16",
+            "169.254.0.0/16",
+            "127.0.0.0/8"
+          ],
+          "why": "Private, link-local and loopback ranges."
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Cables and Wi-Fi",
+      "groups": [
+        {
+          "name": "Fiber connectors",
+          "items": [
+            "LC",
+            "SC",
+            "ST",
+            "MPO"
+          ],
+          "why": "Plugs for fiber-optic cable."
+        },
+        {
+          "name": "Copper cable categories",
+          "items": [
+            "Cat5e",
+            "Cat6",
+            "Cat6a",
+            "Cat8"
+          ],
+          "why": "Twisted-pair ratings."
+        },
+        {
+          "name": "Wi-Fi generations",
+          "items": [
+            "Wi-Fi 4",
+            "Wi-Fi 5",
+            "Wi-Fi 6",
+            "Wi-Fi 7"
+          ],
+          "why": "802.11n, 802.11ac, 802.11ax and 802.11be."
+        },
+        {
+          "name": "Ethernet over copper",
+          "items": [
+            "10BASE-T",
+            "100BASE-TX",
+            "1000BASE-T",
+            "10GBASE-T"
+          ],
+          "why": "Ethernet speeds that run on twisted pair."
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Routing and Switching Deep Dive",
+      "groups": [
+        {
+          "name": "STP port states",
+          "items": [
+            "Blocking",
+            "Listening",
+            "Learning",
+            "Forwarding"
+          ],
+          "why": "The 802.1D spanning tree states a port moves through."
+        },
+        {
+          "name": "Interior gateway protocols",
+          "items": [
+            "OSPF",
+            "EIGRP",
+            "RIP",
+            "IS-IS"
+          ],
+          "why": "They route inside one organisation."
+        },
+        {
+          "name": "BGP path attributes",
+          "items": [
+            "AS_PATH",
+            "LOCAL_PREF",
+            "MED",
+            "NEXT_HOP"
+          ],
+          "why": "Details BGP uses to pick the best route."
+        },
+        {
+          "name": "OSPF neighbour states",
+          "items": [
+            "Init",
+            "2-Way",
+            "ExStart",
+            "Full"
+          ],
+          "why": "The stages of building an OSPF adjacency."
+        }
+      ]
+    }
+  ]
+}

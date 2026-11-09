@@ -1,11 +1,17 @@
 # Plan
 
-- `js/subnet.js`: pure functions (ip conversion, usable hosts, prefix sizing, alignment, overlap, free-slot search).
-- `js/levels.js`: level data. Each level picks a grid unit no larger than its smallest correct block.
-- `js/game.js`: puzzle mode state, validation, rendering, scoring, drill mode, tab switching.
-- `js/merge-core.js`: pure Subnet 2048 rules (siblings, slide and merge, pool, spawn helper, win and stuck, undo, hint).
-- `js/merge.js`: board rendering with sliding tiles, address-map bar, keyboard, buttons and swipe input.
-- `index.html` and `style.css`: single page, light and dark themes, reduced-motion friendly.
-- `tests/run.py` (unit logic, merge rules, level winnability) and `tests/e2e.py` (UI playthrough), both in headless Chrome because Node is not installed.
-- `tests/playwright_test.py`: Playwright browser test that checks every move against an independent Python model.
+- `data/puzzles.json`: the puzzles (id, title, four groups with name, items, why).
+- `js/connections-core.js`: pure logic with no DOM: `validatePuzzle`, `newGame`, `toggle`, `submit`, `shuffle`, `deselectAll`, `shareText`, a seeded random generator.
+- `js/game.js`: loads the JSON, renders the page, wires taps, keeps results in localStorage, exposes `window.__nc.snapshot()` for tests.
+- `index.html` and `style.css`: single page, mobile first, light and dark themes.
+- `tests/index.html` and `tests/run.py`: unit tests of the core and a validity check of every shipped puzzle, run in headless Chrome because Node is not installed.
+- `tests/playwright_test.py`: Playwright browser test. It reads `puzzles.json` with a separate Python implementation, plays every puzzle through the real UI, covers wrong, one-away, duplicate and lost paths, and repeats the key flows on a phone-sized touch screen.
 - Static hosting: `static_root` is `.`.
+
+## Build order
+1. Specs (this folder).
+2. Puzzle data and the validator.
+3. Core logic and unit tests.
+4. UI.
+5. Playwright tests.
+6. README, card image and ARCADE.md.

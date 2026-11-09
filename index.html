@@ -3,117 +3,42 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Address Space Packer</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect width=%278%27 height=%278%27 fill=%27%232563eb%27/%3E%3Crect x=%278%27 width=%274%27 height=%274%27 fill=%27%237c3aed%27/%3E%3Crect y=%278%27 width=%2716%27 height=%278%27 fill=%27%23db2777%27/%3E%3C/svg%3E">
+  <title>Network Connections</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect width=%278%27 height=%278%27 fill=%27%23f9df6d%27/%3E%3Crect x=%278%27 width=%278%27 height=%278%27 fill=%27%23a0c35a%27/%3E%3Crect y=%278%27 width=%278%27 height=%278%27 fill=%27%23b0c4ef%27/%3E%3Crect x=%278%27 y=%278%27 width=%278%27 height=%278%27 fill=%27%23ba81c5%27/%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="top">
-    <div>
-      <h1>Address Space Packer</h1>
-      <p class="tag">Merge the address space back together.</p>
-    </div>
-    <nav class="modes" aria-label="Game mode">
-      <button id="mode-merge" class="mode on" aria-pressed="true">Subnet 2048</button>
-      <button id="mode-pack" class="mode" aria-pressed="false">Puzzle</button>
-      <button id="mode-drill" class="mode" aria-pressed="false">Warm-up drill</button>
-    </nav>
-  </header>
-
   <main>
-    <section id="merge">
-      <p id="m-goal" class="goal"></p>
-      <ul class="rules">
-        <li><strong>Slide</strong> every block with the arrow keys (or WASD, the arrow buttons, or a swipe). A new block arrives after each move.</li>
-        <li><strong>Merge siblings.</strong> Two blocks merge only if they are the two halves of the same bigger block: same size, side by side, and the lower one starts on a multiple of the bigger block's size.</li>
-        <li>Example: 10.0.0.0/28 + 10.0.0.16/28 = 10.0.0.0/27. But 10.0.0.16/28 + 10.0.0.32/28 cannot merge, because a /27 cannot start at .16.</li>
-      </ul>
-      <nav id="m-levels" class="levels" aria-label="Levels"></nav>
-      <h2 id="m-title"></h2>
-      <p id="m-brief" class="brief"></p>
-      <div class="arcade-layout">
-        <div class="boardcol">
-          <div id="m-board" class="mboard" role="grid" aria-label="Subnet blocks"></div>
-          <p class="hint">Address map of the whole block. Hatched pieces have not arrived yet.</p>
-          <div id="m-map" class="mmap" aria-hidden="true"></div>
-        </div>
-        <aside class="panel">
-          <dl class="stats">
-            <div><dt>Moves</dt><dd id="m-moves">0</dd></div>
-            <div><dt>Score</dt><dd id="m-score">0</dd></div>
-            <div><dt>Waiting</dt><dd id="m-pool">0</dd></div>
-            <div><dt>Best</dt><dd id="m-best">-</dd></div>
-          </dl>
-          <p id="m-msg" class="message" role="status" aria-live="polite"></p>
-          <div class="actions">
-            <button id="m-undo">Undo</button>
-            <button id="m-hint">Hint</button>
-            <button id="m-restart">Restart</button>
-          </div>
-          <div class="dpad" aria-label="Slide controls">
-            <button id="m-up" aria-label="Slide up">&uarr;</button>
-            <button id="m-left" aria-label="Slide left">&larr;</button>
-            <button id="m-down" aria-label="Slide down">&darr;</button>
-            <button id="m-right" aria-label="Slide right">&rarr;</button>
-          </div>
-          <div id="m-done" class="done" hidden>
-            <h3 id="m-done-title"></h3>
-            <p id="m-done-text"></p>
-            <button id="m-next">Next level</button>
-          </div>
-          <p class="hint keys"><kbd>&larr;</kbd><kbd>&uarr;</kbd><kbd>&darr;</kbd><kbd>&rarr;</kbd> or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> slide &nbsp; <kbd>U</kbd> undo &nbsp; <kbd>H</kbd> hint &nbsp; <kbd>R</kbd> restart</p>
-        </aside>
+    <header>
+      <h1>Network Connections</h1>
+      <p class="goal">Find four groups of four. Four mistakes allowed.</p>
+    </header>
+
+    <nav id="picker" class="picker" aria-label="Puzzles"></nav>
+    <h2 id="p-title"></h2>
+
+    <div id="solved" class="solved"></div>
+    <div id="grid" class="grid" role="group" aria-label="Tiles. Pick four that belong together."></div>
+
+    <p class="lives">Mistakes left <span id="dots" class="dots" aria-hidden="true"></span><span id="lives-text" class="sr"></span></p>
+    <div class="buttons">
+      <button id="shuffle">Shuffle</button>
+      <button id="deselect">Deselect all</button>
+      <button id="submit" class="primary" disabled>Submit</button>
+    </div>
+    <p id="msg" class="msg" role="status" aria-live="polite"></p>
+
+    <section id="result" class="result" hidden aria-labelledby="r-title">
+      <h3 id="r-title"></h3>
+      <ul id="r-why" class="why"></ul>
+      <pre id="r-share" class="share"></pre>
+      <div class="buttons">
+        <button id="copy">Copy result</button>
+        <button id="next" class="primary">Next puzzle</button>
       </div>
-    </section>
-
-    <section id="pack" hidden>
-      <nav id="levels" class="levels" aria-label="Levels"></nav>
-      <h2 id="level-title"></h2>
-      <p id="level-brief" class="brief"></p>
-      <p class="parent">Parent block: <strong id="parent-cidr"></strong> <span id="parent-meta"></span></p>
-
-      <div class="layout">
-        <aside>
-          <h3>Requests</h3>
-          <ul id="requests" class="requests"></ul>
-          <h3>Prefix length</h3>
-          <div id="prefixes" class="prefixes" role="group" aria-label="Choose prefix length"></div>
-          <p id="prefix-hint" class="hint">Pick a request, choose a prefix, then click a spot on the map.</p>
-          <div class="actions">
-            <button id="undo">Undo</button>
-            <button id="reset">Reset level</button>
-          </div>
-        </aside>
-
-        <section class="mapwrap">
-          <h3>Address map <span class="hint">each square is one <span id="unit-label"></span></span></h3>
-          <div id="map" class="map" role="grid" aria-label="Address map"></div>
-          <p id="hover-info" class="hover" aria-hidden="true">&nbsp;</p>
-          <p id="message" class="message" role="status" aria-live="polite"></p>
-          <p id="score" class="score"></p>
-          <div id="done" class="done" hidden>
-            <h3 id="done-title"></h3>
-            <p id="done-text"></p>
-            <button id="next">Next level</button>
-          </div>
-        </section>
-      </div>
-    </section>
-
-    <section id="drill" hidden>
-      <h2>Warm-up drill</h2>
-      <p class="brief">Ten quick questions. Know your powers of two before you start packing.</p>
-      <p id="drill-progress" class="hint"></p>
-      <p id="drill-q" class="drillq"></p>
-      <div id="drill-options" class="drill-options"></div>
-      <p id="drill-feedback" class="message" role="status" aria-live="polite"></p>
-      <button id="drill-restart" hidden>Play again</button>
+      <p id="copy-note" class="note" role="status" aria-live="polite"></p>
     </section>
   </main>
-
-  <footer>
-    Facts: RFC 4632 (CIDR), RFC 3021 (/31 point-to-point), RFC 1918 (private ranges).
-  </footer>
   <script type="module" src="js/game.js"></script>
 </body>
 </html>

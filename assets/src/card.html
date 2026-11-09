@@ -1,18 +1,15 @@
 <!doctype html><meta charset="utf-8">
 <style>
-html,body{margin:0;width:1280px;height:720px;background:#0f172a;font-family:system-ui,sans-serif;color:#e2e8f0;overflow:hidden}
-.wrap{padding:60px 72px}
-h1{font-size:80px;margin:0 0 6px;letter-spacing:-1px}
-p{font-size:32px;color:#94a3b8;margin:0 0 40px}
-.row{display:flex;align-items:center;gap:22px}
-.t{width:190px;height:190px;border-radius:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;box-shadow:inset 0 -8px 0 rgba(0,0,0,.25)}
-.t b{font-size:60px}.t i{font:600 24px ui-monospace,monospace;font-style:normal}.t small{font-size:20px;opacity:.85}
-.op{font-size:64px;color:#64748b;font-weight:700}
-.big{width:300px}
+html,body{margin:0;width:1280px;height:720px;background:#fbfaf5;font-family:system-ui,sans-serif;color:#1c1c1c;overflow:hidden}
+.wrap{padding:56px 80px}
+h1{font-size:80px;margin:0 0 4px;letter-spacing:-1px}
+p{font-size:32px;color:#5d5d55;margin:0 0 34px}
+.b{border-radius:14px;height:92px;margin-bottom:14px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.b strong{font-size:26px;letter-spacing:.03em;text-transform:uppercase}.b span{font-size:26px}
+.t{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:6px}
+.t div{background:#efefe6;border-radius:14px;height:92px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:28px}
 </style>
-<div class="wrap"><h1>Address Space Packer</h1><p>Subnet 2048: merge sibling blocks back into one route.</p>
-<div class="row">
- <div class="t" style="background:hsl(272deg 62% 38%)"><b>/28</b><i>10.0.0.0</i><small>14 hosts</small></div><div class="op">+</div>
- <div class="t" style="background:hsl(272deg 62% 38%)"><b>/28</b><i>10.0.0.16</i><small>14 hosts</small></div><div class="op">=</div>
- <div class="t big" style="background:hsl(260deg 62% 38%)"><b>/27</b><i>10.0.0.0</i><small>30 hosts</small></div>
-</div></div>
+<div class="wrap"><h1>Network Connections</h1><p>Find four groups of four.</p>
+<div class="b" style="background:#f9df6d"><strong>Routing protocols</strong><span>OSPF, BGP, EIGRP, RIP</span></div>
+<div class="b" style="background:#a0c35a"><strong>TCP flags</strong><span>SYN, ACK, FIN, RST</span></div>
+<div class="t"><div>YANG</div><div>Netmiko</div><div>HSRP</div><div>JSON</div></div></div>
