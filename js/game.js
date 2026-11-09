@@ -1,4 +1,5 @@
 import { COLOURS, MAX_MISTAKES, newGame, rng, toggle, deselectAll, shuffle, submit, shareText, validatePuzzle } from './connections-core.js';
+import { ICONS } from './icons.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -6,7 +7,59 @@ const STORE = 'nc-results-v1';
 const loadResults = () => { try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch { return {}; } };
 const saveResults = (r) => { try { localStorage.setItem(STORE, JSON.stringify(r)); } catch { /* storage may be unavailable */ } };
 
-let puzzles = [], g = null, idx = 0, results = loadResults(), lastNew = -1;
+const THEME_KEY = 'nc-theme-v1';
+const loadTheme = () => { try { return localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark'; } catch { return 'dark'; } };
+const SUN = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"/></svg>';
+const MOON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>';
+const NODES = [[36, 42], [98, 18], [162, 44], [224, 22]];
+const SVGNS = 'http://www.w3.org/2000/svg';
+
+let puzzles = [], g = null, idx = 0, results = loadResults(), lastNew = -1, freshMiss = false;
+
+function applyTheme(t) {
+  document.documentElement.dataset.theme = t;
+  const b = $('theme');
+  b.innerHTML = t === 'dark' ? SUN : MOON;
+  b.setAttribute('aria-label', t === 'dark' ? 'Switch to light theme' : 'Switch to dark theme');
+  b.setAttribute('aria-pressed', String(t === 'light'));
+  const m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = t === 'dark' ? '#070b14' : '#eef3f9';
+}
+
+function buildTopology() {
+  const svg = $('topo'); svg.textContent = '';
+  const el = (name, attrs) => { const e = document.createElementNS(SVGNS, name); Object.entries(attrs).forEach(([k, v]) => e.setAttribute(k, v)); return e; };
+  for (let i = 0; i < 3; i++) svg.appendChild(el('line', { class: `link l${i}`, x1: NODES[i][0], y1: NODES[i][1], x2: NODES[i + 1][0], y2: NODES[i + 1][1] }));
+  NODES.forEach(([x, y], i) => {
+    svg.appendChild(el('circle', { class: `ring r${i} n${i}`, cx: x, cy: y, r: 9 }));
+    svg.appendChild(el('circle', { class: `node n${i}`, cx: x, cy: y, r: 9 }));
+  });
+}
+
+function renderTopology() {
+  const up = (i) => g.solved.includes(i);
+  document.querySelectorAll('#topo .node').forEach((n, i) => n.classList.toggle('up', up(i)));
+  document.querySelectorAll('#topo .link').forEach((l, i) => l.classList.toggle('up', up(i) && up(i + 1)));
+  $('links').innerHTML = `LINKS UP <b>${g.solved.length}/4</b>`;
+  if (lastNew >= 0) {
+    const ring = document.querySelector(`#topo .ring.r${g.solved[lastNew]}`);
+    if (ring) { ring.classList.remove('go'); void ring.getBoundingClientRect(); ring.classList.add('go'); }
+  }
+}
+
+// A short burst of coloured "packets" when a puzzle is solved.
+function burst() {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const box = document.createElement('div'); box.className = 'burst'; box.setAttribute('aria-hidden', 'true');
+  const cols = ['var(--c0)', 'var(--c1)', 'var(--c2)', 'var(--c3)', 'var(--accent)'];
+  for (let i = 0; i < 40; i++) {
+    const p = document.createElement('span'); p.className = 'packet';
+    p.style.left = `${Math.random() * 100}%`; p.style.background = cols[i % cols.length];
+    p.style.animationDelay = `${Math.random() * 0.5}s`; p.style.width = p.style.height = `${6 + Math.random() * 7}px`;
+    box.appendChild(p);
+  }
+  document.body.appendChild(box);
+  setTimeout(() => box.remove(), 2600);
+}
 
 async function init() {
   try {
@@ -21,6 +74,12 @@ async function init() {
   if (bad) { $('msg').textContent = `Puzzle "${bad.p && bad.p.title}" is invalid: ${bad.errs[0]}`; return; }
   const want = Number(params.get('puzzle'));
   start(Math.max(0, puzzles.findIndex((p) => p.id === want)));
+  applyTheme(loadTheme());
+  buildTopology();
+  $('theme').addEventListener('click', () => {
+    const t = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    applyTheme(t); try { localStorage.setItem(THEME_KEY, t); } catch { /* storage may be unavailable */ }
+  });
   $('shuffle').addEventListener('click', () => { shuffle(g); render(); });
   $('deselect').addEventListener('click', () => { deselectAll(g); render(); });
   $('submit').addEventListener('click', onSubmit);
@@ -55,10 +114,18 @@ function onSubmit() {
     results[g.puzzle.id] = { result: g.won ? 'won' : 'lost', mistakes: g.mistakes };
     saveResults(results);
   }
+  freshMiss = g.mistakes > before;
   render();
-  if (g.mistakes > before && !g.lost) {
-    const grid = $('grid'); grid.classList.remove('shake'); void grid.offsetWidth; grid.classList.add('shake');
+  freshMiss = false;
+  if (g.mistakes > before) {
+    const grid = $('grid');
+    if (!g.lost) {
+      grid.classList.remove('shake'); void grid.offsetWidth; grid.classList.add('shake');
+      grid.classList.add('bad'); setTimeout(() => grid.classList.remove('bad'), 700);
+    }
+    if (g.msg === 'One away!') { const m = $('msg'); m.classList.remove('pulse'); void m.offsetWidth; m.classList.add('pulse'); }
   }
+  if (g.won) burst();
 }
 
 function render() {
@@ -70,6 +137,7 @@ function render() {
   renderSolved();
   renderGrid();
   fitTiles();
+  renderTopology();
   renderLives();
   const over = g.won || g.lost;
   $('submit').disabled = over || g.selected.length !== 4;
@@ -104,9 +172,14 @@ function banner(gi, missed, isNew) {
   const d = document.createElement('div');
   d.className = `banner ${COLOURS[gi]}${missed ? ' missed' : ''}${isNew ? ' new' : ''}`;
   d.dataset.group = grp.name;
+  const ico = document.createElementNS(SVGNS, 'svg');
+  ico.setAttribute('viewBox', '0 0 24 24'); ico.setAttribute('class', 'ico'); ico.setAttribute('aria-hidden', 'true');
+  ico.innerHTML = ICONS[grp.icon] || ICONS.tag;
+  const txt = document.createElement('div');
   const s = document.createElement('strong'); s.textContent = grp.name;
   const sp = document.createElement('span'); sp.textContent = grp.items.join(', ');
-  d.append(s, sp);
+  txt.append(s, sp);
+  d.append(ico, txt);
   return d;
 }
 
@@ -144,7 +217,7 @@ window.addEventListener('resize', fitTiles);
 
 function renderLives() {
   const d = $('dots'); d.textContent = '';
-  for (let i = 0; i < MAX_MISTAKES; i++) { const s = document.createElement('span'); s.className = 'dot' + (i < g.mistakes ? ' used' : ''); d.appendChild(s); }
+  for (let i = 0; i < MAX_MISTAKES; i++) { const s = document.createElement('span'); s.className = 'dot' + (i < g.mistakes ? ' used' : '') + (freshMiss && i === g.mistakes - 1 ? ' fresh' : ''); d.appendChild(s); }
   $('lives-text').textContent = `${MAX_MISTAKES - g.mistakes} of ${MAX_MISTAKES}`;
 }
 

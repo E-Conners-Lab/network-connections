@@ -3,16 +3,26 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#070b14">
   <title>Network Connections</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect width=%278%27 height=%278%27 fill=%27%23f9df6d%27/%3E%3Crect x=%278%27 width=%278%27 height=%278%27 fill=%27%23a0c35a%27/%3E%3Crect y=%278%27 width=%278%27 height=%278%27 fill=%27%23b0c4ef%27/%3E%3Crect x=%278%27 y=%278%27 width=%278%27 height=%278%27 fill=%27%23ba81c5%27/%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <main>
-    <header>
-      <h1>Network Connections</h1>
-      <p class="goal">Find four groups of four. Four mistakes allowed.</p>
+    <header class="hdr">
+      <div>
+        <h1>Network Connections</h1>
+        <p class="goal">Find four groups of four. Four mistakes allowed.</p>
+      </div>
+      <button id="theme" class="icon-btn" type="button" aria-label="Switch to light theme"></button>
     </header>
+
+    <div class="topo">
+      <svg id="topo" viewBox="0 0 260 64" role="img" aria-label="Four links, one per group. A link lights up when its group is found."></svg>
+      <p id="links" class="links">LINKS UP <b>0/4</b></p>
+    </div>
 
     <nav id="picker" class="picker" aria-label="Puzzles"></nav>
     <h2 id="p-title"></h2>
@@ -20,7 +30,7 @@
     <div id="solved" class="solved"></div>
     <div id="grid" class="grid" role="group" aria-label="Tiles. Pick four that belong together."></div>
 
-    <p class="lives">Mistakes left <span id="dots" class="dots" aria-hidden="true"></span><span id="lives-text" class="sr"></span></p>
+    <p class="lives">Link health <span id="dots" class="dots" aria-hidden="true"></span><span id="lives-text" class="sr"></span></p>
     <div class="buttons">
       <button id="shuffle">Shuffle</button>
       <button id="deselect">Deselect all</button>

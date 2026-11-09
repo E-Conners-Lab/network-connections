@@ -24,6 +24,7 @@ export function validatePuzzle(p) {
   p.groups.forEach((g, gi) => {
     if (typeof g.name !== 'string' || !g.name.trim()) errs.push(`group ${gi + 1}: name is required`);
     if (typeof g.why !== 'string' || !g.why.trim()) errs.push(`group ${gi + 1}: why is required`);
+    if (g.icon !== undefined && typeof g.icon !== 'string') errs.push(`group ${gi + 1}: icon must be a string`);
     if (!Array.isArray(g.items) || g.items.length !== 4) { errs.push(`group ${gi + 1}: exactly 4 items are required`); return; }
     g.items.forEach((it) => {
       if (typeof it !== 'string' || !it.trim()) { errs.push(`group ${gi + 1}: empty item`); return; }

@@ -16,7 +16,8 @@ from playwright.sync_api import sync_playwright
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 ART = ROOT / "test-artifacts"
 EMOJI = ["\U0001F7E8", "\U0001F7E9", "\U0001F7E6", "\U0001F7EA"]
-RGB = {0: "rgb(249, 223, 109)", 1: "rgb(160, 195, 90)", 2: "rgb(176, 196, 239)", 3: "rgb(186, 129, 197)"}
+RGB = {0: "rgb(251, 191, 36)", 1: "rgb(52, 211, 153)", 2: "rgb(96, 165, 250)", 3: "rgb(167, 139, 250)"}   # status-LED palette
+GREEN, RED = "rgb(52, 211, 153)", "rgb(251, 113, 133)"
 results = []
 
 
@@ -123,6 +124,9 @@ def main():
         # wrong, one away, duplicate
         pick([G[0]["items"][0], G[0]["items"][1], G[1]["items"][0], G[1]["items"][1]]); tap(page.locator("#submit"))
         check(text("#msg") == "Not quite." and used() == 1 and sel() == 4, "2+2 guess: 'Not quite', one dot used, selection kept", text("#msg"))
+        dots = page.locator("#dots .dot")
+        check(dots.nth(0).evaluate("e => getComputedStyle(e).backgroundColor") == RED and dots.nth(1).evaluate("e => getComputedStyle(e).backgroundColor") == GREEN, "link-health LED turns red when used, others stay green")
+        check(page.locator("#grid.bad, #grid.shake").count() == 1, "wrong guess triggers the shake / red flash")
         tap(page.locator("#deselect"))
         pick([G[2]["items"][0], G[2]["items"][1], G[2]["items"][2], G[3]["items"][0]]); tap(page.locator("#submit"))
         check(text("#msg") == "One away!" and used() == 2, "3+1 guess says 'One away!' and costs a dot", text("#msg"))
@@ -143,9 +147,17 @@ def main():
             guesses.append([gi] * 4)
             b = page.locator("#solved .banner").nth(k)
             check(b.get_attribute("data-group") == G[gi]["name"] and b.inner_text().count(G[gi]["items"][0]) == 1, f"group '{G[gi]['name']}' shown as a banner in position {k + 1}")
-            check(b.evaluate("e => getComputedStyle(e).backgroundColor") == RGB[gi], f"banner colour matches difficulty ({['yellow', 'green', 'blue', 'purple'][gi]})")
+            check(b.evaluate("e => getComputedStyle(e).borderLeftColor") == RGB[gi], f"banner colour matches difficulty ({['yellow', 'green', 'blue', 'purple'][gi]})")
+            check(b.locator("svg.ico path, svg.ico circle, svg.ico rect").count() > 0, f"banner for '{G[gi]['name']}' has an icon ({G[gi]['icon']})")
+            nodes_up = page.locator("#topo .node.up").count(); links_up = page.locator("#topo .link.up").count()
+            solved_set = set(solve_order[:k + 1])
+            check(nodes_up == k + 1 and all(page.locator(f"#topo .node.n{i}").get_attribute("class").count("up") == (i in solved_set) for i in range(4)), f"topology: node for the solved group lights up ({k + 1}/4 nodes)")
+            exp_links = sum(1 for i in range(3) if i in solved_set and i + 1 in solved_set)
+            check(links_up == exp_links and f"{k + 1}/4" in text("#links"), f"topology: {exp_links} links up, counter reads {k + 1}/4", text("#links"))
             check(page.locator("#grid .tile").count() == 16 - 4 * (k + 1), f"{16 - 4 * (k + 1)} tiles remain")
         check(snap()["won"] and page.locator("#result").is_visible(), "solving four groups wins and shows the result card")
+        check(page.locator(".burst .packet").count() >= 30, "win triggers the packet burst")
+        check(page.locator("#topo .node.up").count() == 4 and page.locator("#topo .link.up").count() == 3, "topology fully lit after a win")
         check("Solved with 3 mistakes" in text("#r-title"), "result title reports 3 mistakes", text("#r-title"))
         why = page.locator("#r-why li").all_inner_texts()
         check(len(why) == 4 and all(g["name"] in w and g["why"] in w for g, w in zip(G, why)), "every group's reason is shown")
@@ -239,13 +251,40 @@ def main():
             page.screenshot(path=str(ART / f"06-phone-{vw}-solved.png"))
             ctx.close()
 
-        # dark theme sanity
-        ctx = browser.new_context(viewport={"width": 390, "height": 844}, color_scheme="dark", is_mobile=True, has_touch=True)
-        page = new_page(ctx); goto = lambda: (page.goto(base + "?puzzle=2&seed=1"), page.wait_for_selector("#grid .tile"))
-        goto()
-        bg = page.evaluate("getComputedStyle(document.body).backgroundColor")
-        check(bg != "rgb(251, 250, 245)", "dark colour scheme changes the page background", bg)
+        # themes, contrast, reduced motion
+        print("\n== Themes, contrast and motion ==")
+        ctx = browser.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True, color_scheme="light")
+        page = new_page(ctx)
+        page.goto(base + "?puzzle=2&seed=1"); page.wait_for_selector("#grid .tile")
+        bg = lambda: page.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()")
+        check(page.evaluate("document.documentElement.dataset.theme") == "dark" and bg() == "#070b14", "dark is the default theme, even when the device prefers light")
         page.screenshot(path=str(ART / "07-dark.png"))
+        CONTRAST = """(pairs) => pairs.map(([f, b]) => {
+            const rgb = (v) => { const e = document.createElement('i'); e.style.color = `var(${v})`; document.body.appendChild(e); const c = getComputedStyle(e).color; e.remove(); return c.match(/[\\d.]+/g).slice(0, 3).map(Number); };
+            const lum = (c) => { const [r, g, b] = c.map(x => { x /= 255; return x <= .03928 ? x / 12.92 : Math.pow((x + .055) / 1.055, 2.4); }); return .2126 * r + .7152 * g + .0722 * b; };
+            const L1 = lum(rgb(f)), L2 = lum(rgb(b)); return [f, b, (Math.max(L1, L2) + .05) / (Math.min(L1, L2) + .05)]; })"""
+        PAIRS = [["--ink", "--panel2"], ["--ink", "--bg"], ["--ink", "--panel"], ["--muted", "--bg"], ["--muted", "--panel"], ["--muted", "--panel2"],
+                 ["--accent-ink", "--accent"], ["--accent", "--bg"], ["--danger", "--bg"], ["--ok", "--bg"]]
+        for theme in ("dark", "light"):
+            if theme == "light":
+                page.tap("#theme"); page.wait_for_timeout(150)
+                check(page.evaluate("document.documentElement.dataset.theme") == "light" and bg() == "#eef3f9", "theme button switches to light")
+                check("dark" in (page.get_attribute("#theme", "aria-label") or ""), "theme button label updates for screen readers")
+                page.screenshot(path=str(ART / "08-light.png"))
+            low = [f"{a} on {b}: {r:.1f}" for a, b, r in page.evaluate(CONTRAST, PAIRS) if r < 4.5]
+            check(not low, f"{theme} theme: all text and accent colours reach 4.5:1 contrast", "; ".join(low))
+        page.reload(); page.wait_for_selector("#grid .tile")
+        check(page.evaluate("document.documentElement.dataset.theme") == "light", "chosen theme survives a reload")
+        page.tap("#theme"); check(page.evaluate("document.documentElement.dataset.theme") == "dark", "theme button switches back to dark")
+        ctx.close()
+
+        ctx = browser.new_context(viewport={"width": 390, "height": 844}, reduced_motion="reduce")
+        page = new_page(ctx); page.goto(base + "?puzzle=1&seed=1"); page.wait_for_selector("#grid .tile")
+        for g in puzzles[0]["groups"]:
+            for it in g["items"]: page.locator("#grid .tile", has_text=re.compile(f"^{re.escape(it)}$")).click()
+            page.click("#submit")
+        check(page.evaluate("window.__nc.snapshot().won") and page.locator(".burst").count() == 0, "reduced motion: puzzle can be won and no confetti burst is shown")
+        check(page.evaluate("getComputedStyle(document.querySelector('#solved .banner')).animationName") == "none", "reduced motion: banner slide-in animation is off")
         ctx.close()
 
         check(not errors, "no console errors, warnings or failed requests", "; ".join(errors[:3]))

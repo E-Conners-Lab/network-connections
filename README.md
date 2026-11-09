@@ -4,6 +4,8 @@ Find four groups of four. A quick networking and network-automation word puzzle 
 
 Sixteen tiles hide four groups of four related terms, for example *routing protocols* (OSPF, BGP, EIGRP, RIP) or *TCP flags* (SYN, ACK, FIN, RST). Tap four tiles and submit. You get four mistakes, and a "One away!" nudge when three of your four belong together. At the end every group shows a one-line reason, and you can copy a shareable emoji result.
 
+It looks like a network-operations console: a topology graphic in the header lights up a node for every group you find, the mistake counter is a row of link-health LEDs, and each solved group gets an icon. Dark by default, with a light theme toggle, and all motion switches off for people who prefer reduced motion.
+
 Eight puzzles ship: Network Basics, Which Layer?, Automation Toolbox, DevOps for Networks, Security, Addresses and Delivery, Cables and Wi-Fi, and a Routing and Switching Deep Dive.
 
 ## Run it
@@ -16,7 +18,7 @@ Then open http://localhost:8000. No install, no network, no API key. Everything 
 
 ## Add or edit a puzzle
 
-Puzzles live in `data/puzzles.json`. Each has an `id`, a `title` and four `groups`, listed from easiest (yellow) to hardest (purple). A group has a `name`, exactly four `items`, and a one-line `why`. Every item in a puzzle must be different. The game checks this when it loads and shows an error if a puzzle is invalid, and the tests check every shipped puzzle.
+Puzzles live in `data/puzzles.json`. Each has an `id`, a `title` and four `groups`, listed from easiest (yellow) to hardest (purple). A group has a `name`, exactly four `items`, a one-line `why`, and an `icon` (see `js/icons.js` for the names). Every item in a puzzle must be different. The game checks this when it loads and shows an error if a puzzle is invalid, and the tests check every shipped puzzle.
 
 ## Tests
 

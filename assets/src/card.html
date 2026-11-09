@@ -1,15 +1,17 @@
 <!doctype html><meta charset="utf-8">
 <style>
-html,body{margin:0;width:1280px;height:720px;background:#fbfaf5;font-family:system-ui,sans-serif;color:#1c1c1c;overflow:hidden}
-.wrap{padding:56px 80px}
-h1{font-size:80px;margin:0 0 4px;letter-spacing:-1px}
-p{font-size:32px;color:#5d5d55;margin:0 0 34px}
-.b{border-radius:14px;height:92px;margin-bottom:14px;display:flex;flex-direction:column;align-items:center;justify-content:center}
-.b strong{font-size:26px;letter-spacing:.03em;text-transform:uppercase}.b span{font-size:26px}
-.t{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:6px}
-.t div{background:#efefe6;border-radius:14px;height:92px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:28px}
+html,body{margin:0;width:1280px;height:720px;overflow:hidden;font-family:ui-monospace,"SF Mono",Menlo,monospace;color:#e6edf3;
+background:radial-gradient(900px 420px at 50% -80px,rgba(34,211,238,.16),transparent 70%),linear-gradient(rgba(120,160,220,.08) 1px,transparent 1px) 0 0/40px 40px,linear-gradient(90deg,rgba(120,160,220,.08) 1px,transparent 1px) 0 0/40px 40px,#070b14}
+.wrap{padding:46px 90px}
+h1{font-size:68px;margin:0;letter-spacing:.06em;text-transform:uppercase;font-weight:800}h1:before{content:"\25C9";color:#22d3ee;margin-right:.4em;text-shadow:0 0 18px rgba(34,211,238,.6)}
+.sub{font:26px system-ui;color:#8fa0b8;margin:6px 0 20px}
+svg{display:block;margin:0 0 18px}
+.b{display:flex;align-items:center;gap:22px;height:84px;border-radius:14px;border:1.5px solid;border-left-width:9px;margin-bottom:12px;padding:0 24px;background:linear-gradient(90deg,var(--t),#101a2c 70%)}
+.b i{font-size:34px;font-style:normal}.b strong{display:block;font-size:22px;letter-spacing:.07em;text-transform:uppercase}.b span{font:22px system-ui;color:#8fa0b8}
 </style>
-<div class="wrap"><h1>Network Connections</h1><p>Find four groups of four.</p>
-<div class="b" style="background:#f9df6d"><strong>Routing protocols</strong><span>OSPF, BGP, EIGRP, RIP</span></div>
-<div class="b" style="background:#a0c35a"><strong>TCP flags</strong><span>SYN, ACK, FIN, RST</span></div>
-<div class="t"><div>YANG</div><div>Netmiko</div><div>HSRP</div><div>JSON</div></div></div>
+<div class="wrap"><h1>Network Connections</h1><div class="sub">Find four groups of four.</div>
+<svg width="520" height="84" viewBox="0 0 260 64"><g stroke-width="2.4"><line x1="36" y1="42" x2="98" y2="18" stroke="#34d399"/><line x1="98" y1="18" x2="162" y2="44" stroke="#34d399"/><line x1="162" y1="44" x2="224" y2="22" stroke="#223250" stroke-dasharray="4 4"/></g>
+<circle cx="36" cy="42" r="9" fill="#fbbf24" style="filter:drop-shadow(0 0 6px #fbbf24)"/><circle cx="98" cy="18" r="9" fill="#34d399" style="filter:drop-shadow(0 0 6px #34d399)"/><circle cx="162" cy="44" r="9" fill="#60a5fa" style="filter:drop-shadow(0 0 6px #60a5fa)"/><circle cx="224" cy="22" r="9" fill="#15223a" stroke="#223250" stroke-width="2"/></svg>
+<div class="b" style="border-color:#fbbf24;--t:rgba(251,191,36,.22);color:#fbbf24"><i>&#9707;</i><div><strong style="color:#e6edf3">Routing protocols</strong><span>OSPF, BGP, EIGRP, RIP</span></div></div>
+<div class="b" style="border-color:#34d399;--t:rgba(52,211,153,.22);color:#34d399"><i>&#8644;</i><div><strong style="color:#e6edf3">DHCP lease steps</strong><span>Discover, Offer, Request, Acknowledge</span></div></div>
+<div class="b" style="border-color:#60a5fa;--t:rgba(96,165,250,.22);color:#60a5fa"><i>&#9873;</i><div><strong style="color:#e6edf3">TCP flags</strong><span>SYN, ACK, FIN, RST</span></div></div></div>

@@ -1,6 +1,7 @@
 <!doctype html><meta charset="utf-8"><title>tests</title><pre id="out">running</pre>
 <script type="module">
 import * as C from '../js/connections-core.js';
+import { ICONS } from '../js/icons.js';
 const results = []; let pass = 0, fail = 0;
 function t(name, fn) { try { fn(); pass++; } catch (e) { fail++; results.push('FAIL ' + name + ': ' + e.message); } }
 function eq(a, b) { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(`expected ${JSON.stringify(b)}, got ${JSON.stringify(a)}`); }
@@ -16,12 +17,16 @@ puzzles.forEach((p) => t(`puzzle ${p.id} "${p.title}" is valid`, () => { const e
 t('puzzle titles are unique', () => eq(new Set(puzzles.map((p) => p.title)).size, 8));
 t('no item is blank, and every why is a sentence', () => puzzles.forEach((p) => p.groups.forEach((g) => { if (g.why.length < 15) throw new Error(g.name); })));
 
+t('every group has a known icon', () => puzzles.forEach((p) => p.groups.forEach((g) => { if (!ICONS[g.icon]) throw new Error(`${p.title} / ${g.name}: icon "${g.icon}"`); })));
+t('icon markup is plain svg shapes only (no scripts or handlers)', () => Object.entries(ICONS).forEach(([k, v]) => { if (/script|on\w+=|<a |href/i.test(v)) throw new Error(k); }));
+
 // ---- validator rejects bad data ----
 const clone = () => JSON.parse(JSON.stringify(P));
 t('validator: three groups', () => { const p = clone(); p.groups.pop(); if (!C.validatePuzzle(p).length) throw new Error('accepted'); });
 t('validator: duplicate item across groups', () => { const p = clone(); p.groups[1].items[0] = p.groups[0].items[0]; if (!C.validatePuzzle(p).some((e) => e.includes('appears in'))) throw new Error('missed'); });
 t('validator: duplicate differing only by case', () => { const p = clone(); p.groups[1].items[0] = p.groups[0].items[0].toLowerCase(); if (!C.validatePuzzle(p).length) throw new Error('missed'); });
 t('validator: group with 3 items', () => { const p = clone(); p.groups[2].items.pop(); if (!C.validatePuzzle(p).length) throw new Error('missed'); });
+t('validator: icon must be a string when present', () => { const p = clone(); p.groups[0].icon = 5; if (!C.validatePuzzle(p).length) throw new Error('missed'); });
 t('validator: missing why or name', () => { const p = clone(); p.groups[0].why = ''; p.groups[1].name = ' '; eq(C.validatePuzzle(p).length, 2); });
 t('newGame refuses an invalid puzzle', () => { const p = clone(); p.groups.pop(); let threw = false; try { C.newGame(p); } catch { threw = true; } eq(threw, true); });
 

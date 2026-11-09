@@ -12,7 +12,8 @@
             "EIGRP",
             "RIP"
           ],
-          "why": "They exchange routes between routers."
+          "why": "They exchange routes between routers.",
+          "icon": "router"
         },
         {
           "name": "DHCP lease steps (DORA)",
@@ -22,7 +23,8 @@
             "Request",
             "Acknowledge"
           ],
-          "why": "The four messages a client and server swap to hand out an address."
+          "why": "The four messages a client and server swap to hand out an address.",
+          "icon": "arrows"
         },
         {
           "name": "TCP flags",
@@ -32,7 +34,8 @@
             "FIN",
             "RST"
           ],
-          "why": "Control bits in the TCP header."
+          "why": "Control bits in the TCP header.",
+          "icon": "flag"
         },
         {
           "name": "First-hop redundancy",
@@ -42,7 +45,8 @@
             "GLBP",
             "CARP"
           ],
-          "why": "Routers share a virtual gateway address so hosts survive a failure."
+          "why": "Routers share a virtual gateway address so hosts survive a failure.",
+          "icon": "shield"
         }
       ]
     },
@@ -58,7 +62,8 @@
             "Cat6 cable",
             "Fiber optic"
           ],
-          "why": "Bits on a wire or light, with no addressing."
+          "why": "Bits on a wire or light, with no addressing.",
+          "icon": "plug"
         },
         {
           "name": "Layer 2: data link",
@@ -68,7 +73,8 @@
             "VLAN",
             "Frame"
           ],
-          "why": "Local delivery using MAC addresses."
+          "why": "Local delivery using MAC addresses.",
+          "icon": "server"
         },
         {
           "name": "Layer 3: network",
@@ -78,7 +84,8 @@
             "Packet",
             "ICMP"
           ],
-          "why": "Delivery between networks using IP."
+          "why": "Delivery between networks using IP.",
+          "icon": "globe"
         },
         {
           "name": "Layer 4: transport",
@@ -88,7 +95,8 @@
             "TCP",
             "UDP"
           ],
-          "why": "End-to-end delivery between applications."
+          "why": "End-to-end delivery between applications.",
+          "icon": "arrows"
         }
       ]
     },
@@ -104,7 +112,8 @@
             "PUT",
             "DELETE"
           ],
-          "why": "The verbs of a REST API."
+          "why": "The verbs of a REST API.",
+          "icon": "arrows"
         },
         {
           "name": "Data formats",
@@ -114,7 +123,8 @@
             "XML",
             "TOML"
           ],
-          "why": "Ways to write structured data as text."
+          "why": "Ways to write structured data as text.",
+          "icon": "tag"
         },
         {
           "name": "Python libraries for networks",
@@ -124,7 +134,8 @@
             "Nornir",
             "ncclient"
           ],
-          "why": "Python packages for talking to network devices (ncclient is a NETCONF client)."
+          "why": "Python packages for talking to network devices (ncclient is a NETCONF client).",
+          "icon": "code"
         },
         {
           "name": "Model-driven management",
@@ -134,7 +145,8 @@
             "RESTCONF",
             "gNMI"
           ],
-          "why": "A data model plus the protocols that read and change it."
+          "why": "A data model plus the protocols that read and change it.",
+          "icon": "layers"
         }
       ]
     },
@@ -150,7 +162,8 @@
             "push",
             "rebase"
           ],
-          "why": "Everyday version-control operations."
+          "why": "Everyday version-control operations.",
+          "icon": "branch"
         },
         {
           "name": "CI/CD tools",
@@ -160,7 +173,8 @@
             "GitHub Actions",
             "CircleCI"
           ],
-          "why": "They run your tests and deployments when code changes."
+          "why": "They run your tests and deployments when code changes.",
+          "icon": "cog"
         },
         {
           "name": "Configuration management",
@@ -170,7 +184,8 @@
             "Chef",
             "SaltStack"
           ],
-          "why": "They push a desired configuration onto existing devices or servers."
+          "why": "They push a desired configuration onto existing devices or servers.",
+          "icon": "server"
         },
         {
           "name": "Infrastructure provisioning",
@@ -180,7 +195,8 @@
             "CloudFormation",
             "Bicep"
           ],
-          "why": "They create cloud infrastructure from a declared definition."
+          "why": "They create cloud infrastructure from a declared definition.",
+          "icon": "cloud"
         }
       ]
     },
@@ -196,7 +212,8 @@
             "WPA2",
             "WPA3"
           ],
-          "why": "Each generation replaced the one before it."
+          "why": "Each generation replaced the one before it.",
+          "icon": "wifi"
         },
         {
           "name": "VPNs and tunnels",
@@ -206,7 +223,8 @@
             "OpenVPN",
             "GRE"
           ],
-          "why": "They carry traffic across another network."
+          "why": "They carry traffic across another network.",
+          "icon": "lock"
         },
         {
           "name": "AAA and directory services",
@@ -216,7 +234,8 @@
             "Kerberos",
             "LDAP"
           ],
-          "why": "They handle who you are and what you may do."
+          "why": "They handle who you are and what you may do.",
+          "icon": "key"
         },
         {
           "name": "IEEE 802.1 standards",
@@ -226,7 +245,8 @@
             "802.1D",
             "802.1AB"
           ],
-          "why": "VLAN tagging, port authentication, spanning tree and LLDP."
+          "why": "VLAN tagging, port authentication, spanning tree and LLDP.",
+          "icon": "tag"
         }
       ]
     },
@@ -242,7 +262,8 @@
             "CNAME",
             "MX"
           ],
-          "why": "Entries a DNS zone can hold."
+          "why": "Entries a DNS zone can hold.",
+          "icon": "globe"
         },
         {
           "name": "Ways to deliver a packet",
@@ -252,7 +273,8 @@
             "Broadcast",
             "Anycast"
           ],
-          "why": "One-to-one, one-to-group, one-to-all and one-to-nearest."
+          "why": "One-to-one, one-to-group, one-to-all and one-to-nearest.",
+          "icon": "arrows"
         },
         {
           "name": "Services that use UDP",
@@ -262,7 +284,8 @@
             "NTP",
             "SNMP"
           ],
-          "why": "Simple request and response services that skip a TCP connection."
+          "why": "Simple request and response services that skip a TCP connection.",
+          "icon": "pulse"
         },
         {
           "name": "Not routed on the public internet",
@@ -272,7 +295,8 @@
             "169.254.0.0/16",
             "127.0.0.0/8"
           ],
-          "why": "Private, link-local and loopback ranges."
+          "why": "Private, link-local and loopback ranges.",
+          "icon": "shield"
         }
       ]
     },
@@ -288,7 +312,8 @@
             "ST",
             "MPO"
           ],
-          "why": "Plugs for fiber-optic cable."
+          "why": "Plugs for fiber-optic cable.",
+          "icon": "plug"
         },
         {
           "name": "Copper cable categories",
@@ -298,7 +323,8 @@
             "Cat6a",
             "Cat8"
           ],
-          "why": "Twisted-pair ratings."
+          "why": "Twisted-pair ratings.",
+          "icon": "cable"
         },
         {
           "name": "Wi-Fi generations",
@@ -308,7 +334,8 @@
             "Wi-Fi 6",
             "Wi-Fi 7"
           ],
-          "why": "802.11n, 802.11ac, 802.11ax and 802.11be."
+          "why": "802.11n, 802.11ac, 802.11ax and 802.11be.",
+          "icon": "wifi"
         },
         {
           "name": "Ethernet over copper",
@@ -318,7 +345,8 @@
             "1000BASE-T",
             "10GBASE-T"
           ],
-          "why": "Ethernet speeds that run on twisted pair."
+          "why": "Ethernet speeds that run on twisted pair.",
+          "icon": "pulse"
         }
       ]
     },
@@ -334,7 +362,8 @@
             "Learning",
             "Forwarding"
           ],
-          "why": "The 802.1D spanning tree states a port moves through."
+          "why": "The 802.1D spanning tree states a port moves through.",
+          "icon": "branch"
         },
         {
           "name": "Interior gateway protocols",
@@ -344,7 +373,8 @@
             "RIP",
             "IS-IS"
           ],
-          "why": "They route inside one organisation."
+          "why": "They route inside one organisation.",
+          "icon": "router"
         },
         {
           "name": "BGP path attributes",
@@ -354,7 +384,8 @@
             "MED",
             "NEXT_HOP"
           ],
-          "why": "Details BGP uses to pick the best route."
+          "why": "Details BGP uses to pick the best route.",
+          "icon": "globe"
         },
         {
           "name": "OSPF neighbour states",
@@ -364,7 +395,8 @@
             "ExStart",
             "Full"
           ],
-          "why": "The stages of building an OSPF adjacency."
+          "why": "The stages of building an OSPF adjacency.",
+          "icon": "arrows"
         }
       ]
     }
