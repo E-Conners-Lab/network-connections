@@ -1,0 +1,28 @@
+<!doctype html><meta charset="utf-8"><title>e2e</title><pre id="out">running</pre>
+<iframe id="f" src="../index.html" width="1000" height="800"></iframe>
+<script>
+const out = []; const ok = (c, m) => out.push((c ? 'PASS ' : 'FAIL ') + m);
+document.getElementById('f').addEventListener('load', async () => { try {
+  const d = document.getElementById('f').contentDocument; const w = (ms) => new Promise(r => setTimeout(r, ms));
+  await w(300);
+  const pref = (p) => [...d.querySelectorAll('.prefix')].find(b => b.firstChild.textContent === '/' + p);
+  const cell = (i) => d.querySelectorAll('.cell')[i];
+  ok(d.querySelectorAll('.cell').length === 16, 'level 1 renders 16 cells');
+  pref(25).click(); cell(1).click();
+  ok(/not a valid \/25 start/.test(d.getElementById('message').textContent), 'misaligned /25 rejected');
+  pref(27).click(); cell(0).click();
+  ok(/needs 100/.test(d.getElementById('message').textContent), 'too-small block rejected');
+  pref(25).click(); cell(0).click();
+  ok(/Right-sized/.test(d.getElementById('message').textContent), 'Sales /25 placed');
+  pref(25).click(); cell(8).click();   // Engineering needs /26; /25 at 128 is valid but wasteful
+  ok(/No aligned space is left for Guest/.test(d.getElementById('message').textContent), 'oversized block triggers dead-end warning');
+  d.getElementById('undo').click();
+  pref(26).click(); cell(8).click();
+  pref(27).click(); cell(12).click();
+  ok(!d.getElementById('done').hidden, 'level completes');
+  ok(/★★★/.test(d.getElementById('done-title').textContent), '2 mistakes on 300 pts still earns 3 stars (93%)');
+  d.getElementById('mode-drill').click(); await w(200);
+  ok(d.querySelectorAll('#drill-options button').length === 4, 'drill shows 4 options');
+  document.getElementById('out').textContent = 'E2E\n' + out.join('\n') + '\nE2E_FAILS=' + out.filter(x => x.startsWith('FAIL')).length;
+} catch (e) { out.push('FAIL exception ' + e.message); document.getElementById('out').textContent = 'E2E\n' + out.join('\n') + '\nE2E_FAILS=99'; } });
+</script>

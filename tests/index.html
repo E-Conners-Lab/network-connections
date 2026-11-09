@@ -1,0 +1,43 @@
+<!doctype html><meta charset="utf-8"><title>tests</title><pre id="out">running</pre>
+<script type="module">
+import * as S from '../js/subnet.js';
+import { LEVELS } from '../js/levels.js';
+const results = []; let pass = 0, fail = 0;
+function t(name, fn) { try { fn(); pass++; } catch (e) { fail++; results.push('FAIL ' + name + ': ' + e.message); } }
+function eq(a, b) { if (a !== b) throw new Error(`expected ${b}, got ${a}`); }
+
+t('ip round trip', () => eq(S.intToIp(S.ipToInt('192.168.1.130')), '192.168.1.130'));
+t('high-bit ip', () => eq(S.intToIp(S.ipToInt('255.255.255.255')), '255.255.255.255'));
+t('usable /24', () => eq(S.usableHosts(24), 254));
+t('usable /30', () => eq(S.usableHosts(30), 2));
+t('lan /31 unusable', () => eq(S.usableHosts(31), 0));
+t('link /31 is 2 (RFC 3021)', () => eq(S.usableHosts(31, 'link'), 2));
+t('prefixForHosts 100 -> /25', () => eq(S.prefixForHosts(100), 25));
+t('prefixForHosts 126 -> /25', () => eq(S.prefixForHosts(126), 25));
+t('prefixForHosts 127 -> /24', () => eq(S.prefixForHosts(127), 24));
+t('prefixForHosts 2 lan -> /30', () => eq(S.prefixForHosts(2), 30));
+t('prefixForHosts 2 link -> /31', () => eq(S.prefixForHosts(2, 'link'), 31));
+t('alignment', () => { eq(S.isAligned(S.ipToInt('10.0.0.64'), 26), true); eq(S.isAligned(S.ipToInt('10.0.0.48'), 26), false); });
+t('overlap', () => { eq(S.overlaps({start:0,size:64},{start:32,size:32}), true); eq(S.overlaps({start:0,size:64},{start:64,size:64}), false); });
+t('describeBlock', () => { const d = S.describeBlock(S.ipToInt('10.0.0.64'), 26); eq(d.broadcast, '10.0.0.127'); eq(d.first, '10.0.0.65'); eq(d.last, '10.0.0.126'); });
+
+for (const L of LEVELS) {
+  t(`level ${L.id} solvable and unit fine enough`, () => {
+    const parent = S.parseCidr(L.parent);
+    const used = L.reserved.map((r) => S.parseCidr(r.cidr));
+    const unitSize = S.blockSize(L.unit);
+    const reqs = L.requests.map((r) => ({ ...r, p: S.prefixForHosts(r.hosts, r.kind || 'lan') }));
+    reqs.sort((a, b) => a.p - b.p);
+    for (const r of reqs) {
+      if (r.p > L.unit) throw new Error(`${r.name} needs /${r.p}, finer than unit /${L.unit}`);
+      const s = S.findFreeSlot(parent, used, r.p);
+      if (s < 0) throw new Error(`no slot for ${r.name} /${r.p}`);
+      used.push({ start: s, size: S.blockSize(r.p) });
+    }
+    if (parent.size % unitSize) throw new Error('unit does not divide parent');
+    if (parent.size / unitSize > 128) throw new Error('too many cells');
+    L.reserved.forEach((r) => { if (!S.isAligned(S.parseCidr(r.cidr).start, S.parseCidr(r.cidr).prefix)) throw new Error('reserved misaligned'); });
+  });
+}
+document.getElementById('out').textContent = `RESULT pass=${pass} fail=${fail}\n` + results.join('\n');
+</script>

@@ -1,0 +1,20 @@
+<!doctype html><meta charset="utf-8">
+<style>
+html,body{margin:0;width:1280px;height:720px;background:#0f172a;font-family:system-ui,sans-serif;color:#e2e8f0;overflow:hidden}
+.wrap{padding:64px 72px}
+h1{font-size:84px;margin:0 0 8px;letter-spacing:-1px}
+p{font-size:34px;color:#94a3b8;margin:0 0 44px}
+.bar{display:grid;grid-template-columns:repeat(16,1fr);gap:6px;height:150px}
+.bar div{border-radius:8px;background:#1e293b;border:2px solid #334155}
+.a{background:#2563eb!important;grid-column:1/9;border:0!important}
+.b{background:#7c3aed!important;grid-column:9/13;border:0!important}
+.c{background:#db2777!important;grid-column:13/15;border:0!important}
+.d{background:#ea580c!important;grid-column:15/16;border:0!important}
+.lab{display:grid;grid-template-columns:repeat(16,1fr);gap:6px;margin-top:10px;font:600 26px ui-monospace,monospace;color:#cbd5e1}
+.lab span:nth-child(1){grid-column:1/9}.lab span:nth-child(2){grid-column:9/13}.lab span:nth-child(3){grid-column:13/15}.lab span:nth-child(4){grid-column:15/17}
+.foot{margin-top:56px;font:600 28px ui-monospace,monospace;color:#38bdf8}
+</style>
+<div class="wrap"><h1>Address Space Packer</h1><p>Pack the address space. Waste nothing.</p>
+<div class="bar"><div class="a"></div><div class="b"></div><div class="c"></div><div class="d"></div><div></div></div>
+<div class="lab"><span>/25</span><span>/26</span><span>/27</span><span>/28</span></div>
+<div class="foot">192.168.1.0/24 &nbsp;·&nbsp; VLSM &nbsp;·&nbsp; CIDR</div></div>

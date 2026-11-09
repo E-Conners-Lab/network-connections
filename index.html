@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Address Space Packer</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div>
+      <h1>Address Space Packer</h1>
+      <p class="tag">Pack the address space. Waste nothing.</p>
+    </div>
+    <nav class="modes" aria-label="Game mode">
+      <button id="mode-pack" class="mode on" aria-pressed="true">Pack</button>
+      <button id="mode-drill" class="mode" aria-pressed="false">Warm-up drill</button>
+    </nav>
+  </header>
+
+  <main>
+    <section id="pack">
+      <nav id="levels" class="levels" aria-label="Levels"></nav>
+      <h2 id="level-title"></h2>
+      <p id="level-brief" class="brief"></p>
+      <p class="parent">Parent block: <strong id="parent-cidr"></strong> <span id="parent-meta"></span></p>
+
+      <div class="layout">
+        <aside>
+          <h3>Requests</h3>
+          <ul id="requests" class="requests"></ul>
+          <h3>Prefix length</h3>
+          <div id="prefixes" class="prefixes" role="group" aria-label="Choose prefix length"></div>
+          <p id="prefix-hint" class="hint">Pick a request, choose a prefix, then click a spot on the map.</p>
+          <div class="actions">
+            <button id="undo">Undo</button>
+            <button id="reset">Reset level</button>
+          </div>
+        </aside>
+
+        <section class="mapwrap">
+          <h3>Address map <span class="hint">each square is one <span id="unit-label"></span></span></h3>
+          <div id="map" class="map" role="grid" aria-label="Address map"></div>
+          <p id="hover-info" class="hover" aria-hidden="true">&nbsp;</p>
+          <p id="message" class="message" role="status" aria-live="polite"></p>
+          <p id="score" class="score"></p>
+          <div id="done" class="done" hidden>
+            <h3 id="done-title"></h3>
+            <p id="done-text"></p>
+            <button id="next">Next level</button>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section id="drill" hidden>
+      <h2>Warm-up drill</h2>
+      <p class="brief">Ten quick questions. Know your powers of two before you start packing.</p>
+      <p id="drill-progress" class="hint"></p>
+      <p id="drill-q" class="drillq"></p>
+      <div id="drill-options" class="drill-options"></div>
+      <p id="drill-feedback" class="message" role="status" aria-live="polite"></p>
+      <button id="drill-restart" hidden>Play again</button>
+    </section>
+  </main>
+
+  <footer>
+    Facts: RFC 4632 (CIDR), RFC 3021 (/31 point-to-point), RFC 1918 (private ranges).
+  </footer>
+  <script type="module" src="js/game.js"></script>
+</body>
+</html>
