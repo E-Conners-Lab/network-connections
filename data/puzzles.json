@@ -184,7 +184,7 @@
             "Chef",
             "SaltStack"
           ],
-          "why": "They push a desired configuration onto existing devices or servers.",
+          "why": "They enforce a desired state on existing servers or devices.",
           "icon": "server"
         },
         {
@@ -195,7 +195,7 @@
             "CloudFormation",
             "Bicep"
           ],
-          "why": "They create cloud infrastructure from a declared definition.",
+          "why": "They create and update cloud infrastructure from code that describes the desired end state.",
           "icon": "cloud"
         }
       ]
@@ -227,14 +227,14 @@
           "icon": "lock"
         },
         {
-          "name": "AAA and directory services",
+          "name": "Authentication and directory protocols",
           "items": [
             "RADIUS",
             "TACACS+",
             "Kerberos",
             "LDAP"
           ],
-          "why": "They handle who you are and what you may do.",
+          "why": "They prove who you are or look up who you are.",
           "icon": "key"
         },
         {
@@ -277,7 +277,7 @@
           "icon": "arrows"
         },
         {
-          "name": "Services that use UDP",
+          "name": "Services that use UDP by default",
           "items": [
             "DHCP",
             "TFTP",
@@ -288,14 +288,14 @@
           "icon": "pulse"
         },
         {
-          "name": "Not routed on the public internet",
+          "name": "Not globally reachable ranges",
           "items": [
             "10.0.0.0/8",
             "192.168.0.0/16",
             "169.254.0.0/16",
             "127.0.0.0/8"
           ],
-          "why": "Private, link-local and loopback ranges.",
+          "why": "Private-use, link-local and loopback blocks, which IANA marks as not globally reachable.",
           "icon": "shield"
         }
       ]
@@ -362,7 +362,7 @@
             "Learning",
             "Forwarding"
           ],
-          "why": "The 802.1D spanning tree states a port moves through.",
+          "why": "The classic 802.1D spanning tree states a port moves through.",
           "icon": "branch"
         },
         {
@@ -373,7 +373,7 @@
             "RIP",
             "IS-IS"
           ],
-          "why": "They route inside one organisation.",
+          "why": "They route within a single autonomous system.",
           "icon": "router"
         },
         {
@@ -384,11 +384,11 @@
             "MED",
             "NEXT_HOP"
           ],
-          "why": "Details BGP uses to pick the best route.",
+          "why": "Attributes attached to a BGP route that describe it and help decide the best path.",
           "icon": "globe"
         },
         {
-          "name": "OSPF neighbour states",
+          "name": "OSPF neighbor states",
           "items": [
             "Init",
             "2-Way",
