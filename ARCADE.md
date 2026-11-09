@@ -13,7 +13,7 @@ game:
   levels: 8
   card_image: assets/images/title.png
   card_image_alt: "A dark network-console style screen with glowing amber and green group banners listing routing protocols and TCP flags, above a topology of four linked nodes, under the title Network Connections."
-  repo: https://github.com/E-Conners-Lab/address-space-packer
+  repo: https://github.com/E-Conners-Lab/network-connections
   repo_path: ""
   license: MIT
 
